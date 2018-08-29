@@ -1,0 +1,113 @@
+﻿@{
+    Page.SessionRequired = true;
+    Page.Title = String.Format(Resource.Global.Page_TitleFormat, Resource.Global.Account_Password_recovery);
+    Layout = "~/Layout/_CenterPanel.cshtml";
+}
+
+@section head {
+<script type="text/javascript">
+    Page = new (Foundation.Inserter.extend({
+        ctor: function () {
+            this.ApplicationPage = "/Account/Password/Recover";
+            Foundation.Inserter.prototype.ctor.call(this);
+            Foundation.Validator.addMethod("validateEmail", jQuery.proxy(Model.LocationSettings.ValidateEmail, this));
+        },
+
+        //Ref: Admin.Model.Business.Profile.ValidateEmail
+        //http://jquery.bassistance.de/validate/demo/milk/
+        ValidatorOptions: {
+            rules: {
+                email: "validateEmail"
+            },
+
+            messages: {
+                email: "@String.Format(Resource.Global.Editor_Error_Enter_X_Valid, Resource.Dictionary.Email). @Resource.Global.Account_Email_Requirement"
+            }
+        },
+
+        ReflectUser: function () {
+            if (Session.User.Id == 0)
+                Foundation.Page.prototype.ReflectUser.call(this);
+            else
+                Navigation.Main.Home();
+        },
+
+        ValidateRequest: function (token) {
+            if (Session.User.Id == 0 && token.Action == Model.Session.Action.PasswordRecover) {
+                return true;
+            }
+            else
+                return false;
+        },
+
+        $validationItems: {},
+
+        Load: function () {
+            Foundation.Inserter.prototype.Load.call(this); //Set loaded & initialize tabbable
+            var $this = this;
+            User.Service.Master.Location.GetSettings(Settings.Location.Country, function (locationSettings) {
+                $this.$validationItems.LocationSettings = locationSettings;
+            });
+        },
+
+        Validate: function (proceed) {
+            proceed(this.$validator.validate());
+        },
+
+        Save: function (submit) {
+            if (Session.User.Id == 0 && this._token.Action == Model.Session.Action.PasswordRecover) {
+                var email = $('#email', this.$container).val();
+
+                var $this = this;
+                User.Service.Master.Account.RecoverPassword(email, function (success) {
+                    $this.SaveComplete(!success);
+                    if (success) {
+                        $this.$container.detach();
+                        $('#content').empty().append('<span id="successMessage" class="formSuccess">@Resource.Global.Account_Password_Recover_PendingConfirm</span>');
+                    }
+                }, jQuery.proxy(this.Invalidate, this));
+            }
+            else
+                throw new Foundation.Exception.OperationException(Foundation.Exception.OperationException.Type.Invalid);
+        },
+
+        GetErrorMessage: function (error, data) {
+            switch (error) {
+                case Foundation.ErrorMessageType.Data_RecordNotFound:
+                    return "@Resource.Global.Account_Email_Error_NotFound";
+                case Foundation.ErrorMessageType.Operation_Invalid:
+                    return "@String.Format(Resource.Global.Editor_Error_processing_request_X, Resource.Global.Account_Password_Recover_Error)";
+                default:
+                    return Foundation.Page.prototype.GetErrorMessage.call(this, error, data);
+            }
+        }
+    }))();
+</script>}
+
+@section headerFrame {
+<span id="errorMessage" class="formError" style="display:none; margin-bottom:5px;">@Resource.Global.Editor_Error</span>}
+
+<div class="form header"><span>@Resource.Global.Account_Password_recovery</span></div>
+<form id="form" action="">
+    <center>
+        <fieldset class="xtra" style="margin-top: 10px;">
+            <table class="form">
+                <tr>
+                    <td class="label auto"><label for="email">@Resource.Dictionary.Email</label></td>
+                    <td class="value" style="width:155px;"><input type="text" id="email" name="email" /></td>
+                    <td></td>
+                </tr>
+                <tr>
+                    <td></td>
+                    <td class="value" colspan="2" style="width:300px;">@Resource.Global.Account_Password_Recover_Email_Hint</td>
+                </tr>
+            </table>
+        </fieldset>
+    </center>
+    <div class="form footer buttonPanel">
+        <button type="button" id="submit" class="active"><span class="button-content">@Resource.Action.Submit</span></button>
+        <button type="button" id="cancel" data-command="Cancel" class="active"><span class="button-content">@Resource.Action.Cancel</span></button>
+    </div>
+    <span id="error" class="formError" style="display:none; margin-top:15px;">
+    </span>
+</form>

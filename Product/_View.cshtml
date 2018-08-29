@@ -1,0 +1,520 @@
+﻿@{
+    Page.Title = String.Format(Resource.Global.Page_TitleFormat, Resource.Dictionary.Products);
+    Page.MicrodataItemType = "http://schema.org/Product";
+    Layout = "~/Layout/_ViewPanel.cshtml";
+}
+
+@section head {
+<script type="text/javascript">
+    System.Type.RegisterNamespace('Product');
+    Product.View = View.IAccount.extend({
+        ctor: function () {
+            View.IAccount.prototype.ctor.call(this);
+
+            var $this = this;
+
+            //pupups
+            this.personalList = new Controls.Personal.List.Edit();
+            this.confirmRelease = new Foundation.Controls.Confirm.Form();
+            this.confirmRelease.MessageFormat = "@Resource.Product.Ad_Confirm_Release";
+            this.confirmReport = new Foundation.Controls.Confirm.Form();
+            this.confirmReport.MessageFormat = "@Resource.Product.Ad_Confirm_Report";
+            this.confirmTag = new Foundation.Controls.Confirm.Form();
+
+            //context
+            this.category = new Foundation.Controls.Group.Path(User.Service.Master.Category);
+            this.status = new Controls.Product.Status();
+
+            //product
+            this.image = new Controls.Image.FlipView();
+            this.address = new Controls.Address.View();
+            this.attributes = new Controls.Product.Attribute.View();
+            this.tags = new Controls.Product.Tags();
+
+            //actions
+            this.personalLists = new Controls.Personal.List.Select();
+            this.personalLists.Text("@Resource.Personal.List_Add_to");
+            this.confirmPersonalList = new Foundation.Controls.Confirm.Form();
+            this.confirmPersonalList.MessageFormat = "@Resource.Personal.List_Product_Confirm_Add";
+            this.confirmPersonalList.CommandText("@Resource.Action.Ok");
+            this.confirmPersonalList.OptionTemplate = "<table><tr><td><center><textarea id=\"productNote\" name=\"productNote\" class=\"textWrap\" placeholder=\"@Resource.Personal.Note\" rows=\"8\" cols=\"35\"></textarea></center></td></tr>" +
+                                                      "<tr><td style=\"padding-top:10px;\"><input type=\"checkbox\" id=\"overwrite\" name=\"overwrite\" />&nbsp;@Resource.Global.Overwrite_if_exists</td></tr></table>";
+            this.confirmPersonalList.ValidatorOptions = {
+                rules: {
+                    productNote: {
+                        maxlength: 500
+                    }
+                }
+            };
+
+            this.communities = new Controls.Action.CommunityProduct();
+            this.confirmCommunity = this.communities.$popupForm;
+            this.confirmCommunity_Category = this.communities.CommunityCategory;
+
+            this.release = new Controls.Action.Interaction(this.confirmRelease);
+            this.release.Text("@Resource.Action.Release");
+            this.release.ExercisedText = "@Resource.Product.Released";
+            this.report = new Controls.Product.Report(this.confirmReport);
+            this.productTabs = new Foundation.Controls.Layout.TabControl();
+            this.report.Text("@Resource.Action.Report");
+            this.report.ExercisedText = "@Resource.Product.Reported";
+        },
+
+        Initialize: function (options) {
+            if (!this.IsPopup)
+                ReflectMenu(Navigation.Menu.MainItem.ItemType.Scroll, Navigation.Menu.SubItem.ItemType.Scroll_Products, true);
+
+            var $this = this;
+
+            this.address.Container = $('#address');
+
+            //Category
+            //this.category.Visible = function (visible) {
+            //    if (visible != undefined)
+            //        Foundation.Controls.Control.prototype.Visible.set.call($this.category, visible, $('#category'));
+            //    else
+            //        return Foundation.Controls.Control.prototype.Visible.get.call($this.category, $('#category'));
+            //}
+            this.category.Populated = function (c) {
+                $('#category').show();
+            };
+            this.category.GroupSelected = function (category) {
+                if (category.Id > 0)
+                    Navigation.Product.Search(0, category.Id, undefined, Session.User.LocationId);
+            };
+
+            //Tabs
+            this.productTabs.Initialize($('#bodyFrame'));
+            this.productTabs.$container.addClass("subtle");
+            var descriptionTab = new Foundation.Controls.Layout.TabItem($('<div style="vertical-align:top;" id="description" itemprop="description"></div>'));
+            descriptionTab.Header = "<span>@Resource.Dictionary.Description</span>";
+            this.productTabs.AddTab(descriptionTab);
+
+            //PersonalList
+            this.personalList.Submit = function () {
+                var personalListId = $this.personalList.$folder.Id;
+                var action = $this.personalList.$folder.Action;
+                if (personalListId == 0 && action == Foundation.Controls.Folder.EditAction.Create) {
+                    var name = $this.personalList.$folder.Name;
+                    if (!String.isNullOrWhiteSpace(name)) {
+                        Admin.Service.Personal.List.Create({ Id: 0, Name: name }, function (personalList) {
+                            $this.personalLists.Populate();
+                            $this.personalList.SubmitComplete();
+                        }, jQuery.proxy($this.personalList.Invalidate, $this.personalList));
+                    }
+                }
+            };
+            this.personalLists.StateOverride = function (personalLists, state) {
+                var product = $this.Product;
+                if (product != undefined && product.Status != Model.Product.Status.Active) {
+                    personalLists.State(Foundation.Controls.Action.State.Hidden);
+                }
+                else if (personalLists.State() != state)
+                    personalLists.State(state);
+            };
+            this.personalLists.ItemSelected = function (list, itemType) {
+                if (Session.User.Id > 0 && $this.Product.Id > 0 && $this.Product.Status == Model.Product.Status.Active) {
+                    if (list.Id > 0) {
+                        $this.confirmPersonalList.Content["PersonalList"] = list.Name;
+                        $this.confirmPersonalList.CommandArgument = list.Id;
+                        $('#overwrite', $this.confirmPersonalList.$container).prop('checked', false);
+                        $this.confirmPersonalList.Show();
+                    }
+                    else if (list.Id == 0) {
+                        $this.personalList.InitCreate();
+                        $this.personalList.Show();
+                    }
+                }
+            };
+            this.confirmPersonalList.Submit = function () {
+                var personalList = $this.confirmPersonalList.CommandArgument;
+                var productNote = $('#productNote', $this.confirmPersonalList.$container).val();
+                var overwrite = $('#overwrite', $this.confirmPersonalList.$container).prop('checked') ? true : false;
+                Admin.Service.Personal.List.AddProduct(personalList, $this.Product.Id, productNote, overwrite, function (success) {
+                    $this.confirmPersonalList.SubmitComplete();
+                }, jQuery.proxy($this.confirmPersonalList.Invalidate, $this.confirmPersonalList));
+            };
+
+            //Community
+            this.communities.StateOverride = function (communities, state) {
+                var product = $this.Product;
+                if (product != undefined && product.Status != Model.Product.Status.Active) {
+                    communities.State(Foundation.Controls.Action.State.Hidden);
+                }
+                else if (communities.State() != state)
+                    communities.State(state);
+            };
+            this.communities.ItemSelected = function (community, itemType) {
+                if (Session.User.Id > 0 && $this.Product.Id > 0 && $this.Product.Status == Model.Product.Status.Active && community.Id > 0) {
+                    Admin.Service.Community.Profile.Get(community.Id, function (cachedCommunity) {
+                        if (cachedCommunity && Admin.Service.Community.Profile.CanProduce(cachedCommunity)) {
+                            $this.confirmCommunity.Content["Community"] = community.Name;
+                            $this.confirmCommunity.CommandArgument = community.Id;
+                            $this.confirmCommunity_Category.Community(community.Id);
+                            //$this.confirmCommunity_Category.Allow_PostProducts_Uncategorized = cachedCommunity.Allow_PostProducts_Uncategorized;
+                            $('#overwrite', $this.confirmCommunity.$container).prop('checked', false);
+                            $this.confirmCommunity.Show();
+                        }
+                    });
+                }
+            };
+            this.confirmCommunity.Submit = function () {
+                if ($this.Product && $this.Product.Id > 0 && $this.Product.Status == Model.Product.Status.Active) {
+                    var community = $this.confirmCommunity.CommandArgument;
+                    if (community > 0) {
+                        Admin.Service.Community.Profile.Get(community, function (cachedCommunity) {
+                            if (cachedCommunity && Admin.Service.Community.Profile.CanProduce(cachedCommunity)) {
+                                var confirmCommunity_Category = $this.confirmCommunity_Category.Value;
+                                if (confirmCommunity_Category/* || cachedCommunity.Allow_PostProducts_Uncategorized*/) {
+                                    var productText = $('#productText', $this.confirmCommunity.$container).val();
+                                    overwrite = $('#overwrite', $this.confirmCommunity.$container).prop('checked') ? true : false;
+                                    Admin.Service.Community.Product.Add(community, (confirmCommunity_Category ? confirmCommunity_Category.Id : 0), $this.Product.Id, productText, overwrite, function (success) {
+                                        $this.confirmCommunity.SubmitComplete();
+                                    }, jQuery.proxy($this.confirmCommunity.Invalidate, $this.confirmCommunity));
+                                }
+                                else
+                                    $this.confirmCommunity.Invalidate(new Foundation.Exception.ArgumentException(Foundation.Exception.ArgumentException.Type.ValueRequired, "Category"));
+                            }
+                            else
+                                $this.confirmCommunity.Invalidate(new Foundation.Exception.SessionException(Foundation.Exception.SessionException.Type.Unauthorized));
+                        });
+                        return;
+                    }
+                }
+                throw new Foundation.Exception.OperationException(Foundation.Exception.OperationException.Type.Invalid);
+            };
+
+            //Release
+            this.release.StateOverride = function (release, state) {
+                var securityProfile = Session.User.SecurityProfile;
+                if (state == Foundation.Controls.Action.State.Active) {
+                    var product = $this.Product;
+                    if (product != undefined /*&& (product.Status == Model.Product.Status.Active || product.Status == Model.Product.Status.Pending)*/ &&
+                        ((product.PendingStatus & Model.Product.PendingStatus.PeerReview) > 0 || (product.PendingStatus & Model.Product.PendingStatus.StaffReview) > 0)) {
+                        //Match condition the server-side check in Admin.Product.Profile.Release
+                        if (((product.Status == Model.Product.Status.Active || product.Status == Model.Product.Status.Pending) && (product.PendingStatus & Model.Product.PendingStatus.StaffReview) > 0 && securityProfile.CanReview_Staff) ||
+                            (product.Status == Model.Product.Status.Pending && (product.PendingStatus & Model.Product.PendingStatus.PeerReview) > 0 && (securityProfile.CanRelease_Peer || securityProfile.CanReview_Staff))) {
+                            $this.confirmRelease.CommandText(release.Text());
+                            $this.confirmRelease.Content["Action"] = release.Text();
+
+                            release.State(Foundation.Controls.Action.State.Active);
+                            return;
+                        }
+                        else //if((product.PendingStatus & Model.Product.PendingStatus.PeerReview) > 0 || (product.PendingStatus & Model.Product.PendingStatus.StaffReview) > 0)
+                        {
+                            release.State(Foundation.Controls.Action.State.Inactive);
+                            return;
+                        }
+                    }
+                }
+
+                if (release.State() != Foundation.Controls.Action.State.Hidden)
+                    release.State(Foundation.Controls.Action.State.Hidden);
+            };
+            this.confirmRelease.Submit = function () {
+                $this.productAdminReview($this.confirmRelease, $this.release);
+            };
+            this.confirmRelease.Error = function (error, data) {
+                return $this.productAdminReviewError($this.confirmRelease, error, data);
+            };
+
+            //Report
+            this.report.StateOverride = function (report, state) {
+                if (state == Foundation.Controls.Action.State.Active && report.Ready()) {
+                    var securityProfile = Session.User.SecurityProfile;
+                    if (securityProfile.CanReview_Staff) {
+                        //var text = (securityProfile.CanReview_Staff ? Resource.Dictionary.Reject : Resource.Dictionary.Report);
+                        //var excercisedText = String.Format((securityProfile.CanReview_Staff ? Resource.Dictionary.X_rejected : Resource.Dictionary.X_reported), Resource.Dictionary.Ad);
+
+                        report.Text("@Resource.Action.Reject");
+                        report.ExercisedText = "@Resource.Product.Rejected";
+                    }
+                    $this.confirmReport.CommandText(report.Text());
+                    $this.confirmReport.Content["Action"] = report.Text();
+
+                    report.State(Foundation.Controls.Action.State.Active);
+                }
+                else if (report.State() != state)
+                    report.State(state);
+            };
+            this.report.ItemSelected = function (reason, itemType) {
+                if (Session.User.Id > 0 && $this.Product.Id > 0 && reason.Id > 0) {
+                    $this.confirmReport.Content["Reason"] = reason.Name;
+                    $this.confirmReport.CommandArgument = reason.Id;
+                    $this.confirmReport.Show();
+                }
+            };
+            this.confirmReport.Submit = function () {
+                $this.productAdminReview($this.confirmReport, $this.report);
+            };
+            this.confirmReport.Error = function (error, data) {
+                return $this.productAdminReviewError($this.confirmReport, error, data);
+            };
+
+            //Will call EvaluateActions
+            Foundation.Page.prototype.Initialize.call(this, options);
+
+            //Tags
+            this.tags.Initialize($('#rightFrame')/*, { css: { marginLeft: '10px' } }*/); //After Page.Initialize calls actionPanel.Initialize
+            this.tags.Add = function (tag) {
+                tag = $this.tags.NewTag();
+                if (!String.isNullOrWhiteSpace(tag)) {
+                    var userId = Session.User.Id;
+                    if (userId > 0 && $this._token.AccountId > 0 && $this.Product.Id > 0) {
+                        $this.confirmTag.MessageFormat = "@Resource.Product.Tag_Confirm_Add";
+                        $this.confirmTag.Action = "Add";
+                        $this.confirmTag.Content["Tag"] = tag;
+                        $this.confirmTag.CommandText("@Resource.Action.Add");
+                        $this.confirmTag.CommandArgument = tag;
+                        $this.confirmTag.Show();
+                    }
+                }
+            };
+            this.tags.Promote = function (tag) {
+                if (tag && tag.Id && tag.Name && !tag.Own) {
+                    $this.confirmTag.MessageFormat = "@Resource.Product.Tag_Confirm_Promote";
+                    $this.confirmTag.Action = "Promote";
+                    $this.confirmTag.Content["Tag"] = tag.Name;
+                    $this.confirmTag.CommandText("@Resource.Action.Promote");
+                    $this.confirmTag.CommandArgument = tag.Id;
+                    $this.confirmTag.Show();
+                }
+            };
+            this.tags.Demote = function (tag) {
+                if (tag && tag.Id && tag.Name && tag.Own) {
+                    $this.confirmTag.MessageFormat = "@Resource.Product.Tag_Confirm_Remove";
+                    $this.confirmTag.Action = "Demote";
+                    $this.confirmTag.Content["Tag"] = tag.Name;
+                    $this.confirmTag.CommandText("@Resource.Action.Remove");
+                    $this.confirmTag.CommandArgument = tag.Id;
+                    $this.confirmTag.Show();
+                }
+            };
+            this.confirmTag.Submit = function () {
+                switch ($this.confirmTag.Action) {
+                    case "Add":
+                        Admin.Service.Product.Tag.Add($this.Product.Id, $this.confirmTag.CommandArgument, function (tags) {
+                            $this.Product.Tags = tags;
+                            $this.tags.Populate($this.Product);
+                            $this.tags.NewTag('');
+                            $this.confirmTag.SubmitComplete();
+                        }, jQuery.proxy($this.confirmTag.Invalidate, $this.confirmTag));
+                        break;
+                    case "Promote":
+                    case "Demote":
+                        Admin.Service.Product.Tag[$this.confirmTag.Action]($this.Product, $this.confirmTag.CommandArgument, function (tags) {
+                            $this.Product.Tags = tags;
+                            $this.tags.Populate($this.Product);
+                            $this.confirmTag.SubmitComplete();
+                        }, jQuery.proxy($this.confirmTag.Invalidate, $this.confirmTag));
+                        break;
+                    default:
+                        throw new Foundation.Exception.OperationException(Foundation.Exception.OperationException.Type.Invalid);
+                }
+            };
+            this.confirmTag.Error = function (error, data) {
+                if (error == Foundation.ErrorMessageType.Data_DuplicateRecord && $this.confirmTag.Action == "Add")
+                    return "@String.Format(Resource.Global.Editor_Error_processing_request_X, Resource.Product.Tag_Exists)";
+            };
+        },
+
+        ReflectUser: function () {
+            Foundation.Page.prototype.ReflectUser.call(this);
+            if (this.Product) { //has already been populated
+                if (this.message.$container)
+                    this.message.Reset();
+                if (this.tags.$container)
+                    this.tags.Populate(this.Product);
+            }
+        },
+
+        AddActions: function () {
+            this.actionPanel.Add(this.messageAction);
+            this.actionPanel.Add(this.personalLists);
+            this.actionPanel.Add(this.release);
+            this.actionPanel.Add(this.report);
+        },
+
+        EvaluateActions: function (reset) {
+            //need to delay EvaluateActions until populate is called and _token.AccountId is set otherwise action.Addressee will be 0
+            if (!this.Product || this._token.AccountId == 0) {
+                for (var i = 0, l = this.actionPanel.Actions.length; i < l; i++) {
+                    if (this.actionPanel.Actions[i].State() != Foundation.Controls.Action.State.Inactive)
+                        this.actionPanel.Actions[i].State(Foundation.Controls.Action.State.Inactive);
+                }
+            }
+            else
+                Foundation.Page.prototype.EvaluateActions.call(this, reset);
+        },
+
+        populate: function (product, account) {
+            if (product) {
+                account = account || product.Account;
+                this._token.AccountId = account.Id;
+                if (this._token.ProductId == product.Id && this._token.AccountType == account.AccountType) {
+                    this.Product = product;
+
+                    $('.accountName').text(account.Name);
+                    $('.name').text(product.Master.Title);
+                    this.confirmPersonalList.Content["Product"] = product.Master.Title;
+                    this.confirmCommunity.Content["Product"] = product.Master.Title;
+
+                    $('#id').text(product.Id);
+                    var securityProfile = Session.User.SecurityProfile;
+                    if ((product.Status != Model.Product.Status.Active || product.PendingStatus != 0) && (securityProfile.CanRelease_Peer || securityProfile.CanReview_Staff))
+                        this.status.Populate(product, $('#status'));
+                    //else
+                    //    $('#status').hide();
+
+                    /*User.Service.Master.Dictionary.GetItemText(Model.DictionaryType.ProductType, product.Master.Type, function (type) {
+                        $('#type').text(type);
+                    });
+                    User.Service.Master.Dictionary.GetItemText(Model.DictionaryType.ProductSide, product.Side, function (side) {
+                        $('#side').text(side);
+                    });
+                    User.Service.Master.Dictionary.GetDisplayPrice(product.Price.Value, product.Price.Type, product.Price.Currency, function (price) {
+                        $('#price').text(price);
+                    });*/
+                    $('#type').text(product.Master.Type.ItemText);
+                    //$('#side').text(product.Side.ItemText);
+                    $('#price').text(Model.Product.PriceType.GetDisplayText.call(product.Price.Type, product.Price.Value, product.Price.Currency));
+
+                    if (product.Attributes)
+                        this.attributes.Populate(product.Attributes, $('#attributes'));
+
+                    if (product.Location) {
+                        this.address.Populate(product.Location, this.address.Container);
+                        this.address.PlaceName = product.Master.Title;
+                    }
+
+                    $('#description').html(product.Master.RichText);
+                    metaDescription(product.Master.Text);
+                    if (product.Keywords) {
+                        metaKeywords(product.Keywords);
+                    }
+
+                    this.category.Populate(product.Master.Category.Id, $('#category'));
+
+                    if (product.Images)
+                        this.image.Populate(product.Images, $('#image'));
+
+                    this.tags.Populate(product);
+
+                    this.message.Populate(this, account, { Id: product.Id, Name: product.Master.Title }/*, $('#message')*/);
+
+                    Foundation.Page.prototype.EvaluateActions.call(this, false); // Evaluate after both _token.AccountId and Product are set as _release depends on Product.Status
+
+                    $('.asyncData').show();
+                    this.productTabs.Visible(true);
+
+                    Foundation.Page.prototype.Load.call(this); //Set the loaded flag
+                    return;
+                }
+            }
+
+            Navigation.Main.Home();
+        },
+
+        productAdminReview: function (confirm, action) {
+            if (confirm != undefined && Session.User.Id > 0 && this.Product.Id > 0) {
+                var other = (action == this.release ? this.report : this.release);
+                if (confirm == this.confirmRelease) {
+                    Admin.Service.Product.Profile.Release(this.Product.Id, function (success) {
+                        confirm.SubmitComplete();
+
+                        if (success /*&& !View.Navigation.Main.TryForward()*/) {
+                            action.Exercised(true); //View.Navigation.Main.Refresh();
+                            other.State(Foundation.Controls.Action.State.Inactive);
+                        }
+                    }, jQuery.proxy(confirm.Invalidate, confirm));
+                }
+                else if (typeof confirm.CommandArgument == "number") {
+                    var $this = this;
+                    var securityProfile = Session.User.SecurityProfile;
+                    var reason = confirm.CommandArgument;
+                    var callback = function (success) {
+                        confirm.SubmitComplete();
+
+                        if (success) {
+                            if ((reason & Model.Product.RejectReason.Offensive) > 0) {
+                                action.Exercised(true);
+                                other.State(Foundation.Controls.Action.State.Inactive);
+                            }
+                            else
+                                Navigation.Product.Offensive($this.Product.Id, $this._token.Cancel, $this._token.Forward);
+                        }
+                    };
+                    if (securityProfile.CanReview_Staff) {
+                        Admin.Service.Product.Profile.Reject(this.Product.Id, reason, callback, jQuery.proxy(confirm.Invalidate, confirm));
+                    }
+                    else
+                        Admin.Service.Product.Profile.Report(this.Product.Id, reason, securityProfile.CanSuspend, callback, jQuery.proxy(confirm.Invalidate, confirm));
+                }
+            }
+        },
+
+        productAdminReviewError: function (confirm, error, data) {
+            if (error == Foundation.ErrorMessageType.Data_DuplicateRecord)
+                return String.format("@Resource.Product.AdminReview_Error", confirm.CommandText());
+            else
+                return '';
+        },
+
+        onCommand: function (command) {
+            switch (command) {
+                case "ViewAccount":
+                    switch (this._token.AccountType) {
+                        case Model.AccountType.Business:
+                            Navigation.Business.ProfileView(this._token.AccountId);
+                            break;
+                        case Model.AccountType.Personal:
+                            Navigation.Personal.ProfileView(this._token.AccountId);
+                            break;
+                    }
+                    break;
+                case "ViewProducts":
+                    Navigation.Product.ListView(this._token.AccountType, this._token.AccountId);
+                    break;
+            }
+        }
+    });
+</script>
+@RenderSection("head", required: false)}
+
+@section context {
+<table class="asyncData" style="display:none; width:100%; margin-bottom:5px;">
+    @RenderSection("bizsrt", required: false)
+    <tr>
+        <td style="text-align:left;">
+            <table><tbody>
+                @RenderSection("context", required: false)
+                <tr>
+                    <td id="category" style="display:none;">@Resource.Product.Listed_in_category&nbsp;</td>
+                </tr>
+            </tbody></table>
+        </td>
+        <td style="text-align:right; float:right; width:auto;">
+            <table><tbody>
+                <tr>
+                    <td style="padding-bottom:5px;">@Resource.Dictionary.Id:&nbsp;<span id="id"></span></td>
+                </tr>
+                <tr>
+                    <td id="status" style="display:none;">@Resource.Dictionary.Status: <span id="text"></span><span id="reason" style="display:none;">&nbsp;@Resource.Dictionary.Reason: <span id="reasonText"></span></span></td>
+                </tr>
+            </tbody></table>
+        </td>
+    </tr>
+</table>}
+
+@section centerFrame {
+@RenderSection("centerFrame", required: false)}
+
+@section rightFrame {
+<div class="side right" style="margin-bottom:5px;">
+    <span class="header" style="overflow:hidden;">
+        @Resource.Product.Listed_by&nbsp;<a class="href accountName" data-command="ViewAccount"></a>
+    </span>
+    @RenderSection("profile", required: false)
+</div>}
+
+@RenderBody()

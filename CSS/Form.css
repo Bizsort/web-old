@@ -1,0 +1,1118 @@
+﻿* {
+    margin: 0;
+    box-sizing: border-box;
+    -moz-box-sizing: border-box;
+    -webkit-box-sizing: border-box;
+}
+
+html, body {
+    height: 100%;
+}
+
+body 
+{
+	font-size: 80%; 
+    font-family: verdana, helvetica, sans serif; 
+    background-color: #ffffff;
+}
+
+div.map 
+{ 
+    width: 100%; 
+    height: 100%;
+}
+
+.page-content-wrap
+{
+    min-height: 100%;
+    height: auto !important;
+    height: 100%;
+    margin: 0 auto -2.7em; /*-32px*/
+}
+
+.page-footer-pusher, 
+.page-footer
+{
+    margin: 0 auto;
+    height: 2.7em; /*32px*/
+    overflow: hidden;
+}
+
+.page-content-wrap,
+.page-footer
+{
+    max-width: 997px;
+    min-width: 997px;
+    /*background-color: white;*/
+}
+
+span#errorMessage,
+span#successMessage,
+form#form span#error,
+div.side > span.content
+{
+    display: block;
+}
+
+span#errorMessage,
+span#successMessage,
+form#form span#error
+{
+    text-align: center;
+}
+
+table
+{
+    border-collapse: collapse; /*cellspacing*/
+    border-spacing: 0px;
+	border-width: 0px;
+}
+
+table tr.auto
+{
+    height:1px; 
+    white-space:nowrap;
+}
+
+table td.auto
+{
+    width:1px; 
+    white-space:nowrap;
+}
+
+#description p {
+    margin: 0;
+}
+
+#description p:empty {
+    display: none;
+}
+
+#description p:not(:empty)+p
+{
+    margin-top:12px;
+}
+
+ul
+{
+    margin: 0px 0px 0px 10px;
+    padding: 0;
+}
+
+div.popup,
+div.popup div.header.indented,
+div.form,
+ul.treeView li > a,
+ul.listBox > li > a,
+table.form td.value div.field,
+table.form td.value span.field,
+div.side,
+table.thumbnail,
+ul.img-edit > li,
+fieldset,
+div.form.header,
+input[type=text],
+input[type=password],
+table.attributes,
+table.attributes > tbody > tr > td.label,
+table.attributes > tbody > tr > td.value,
+table.attributes > tbody > tr > td.values,
+div.tabPanel > ul > li,
+.tabControl > div.content
+{
+	border-style: solid;
+	border-width: 1px;
+}
+
+input[type=text],
+input[type=password]
+{
+    padding:2px 1px;
+}
+
+table.attributes td.label
+{
+    font-style:italic;
+}
+
+.page-footer > table,
+table tr.separated > td,
+div.popup div.footer
+{ 
+	border-top-style: solid; 
+	border-top-width: 1px; 
+}
+
+div.side > span.header,
+table.view > tbody > tr.header > th,
+div.popup div.header,
+div.item-dropDown span.header
+{ 
+	border-bottom-style: solid; 
+	border-bottom-width: 1px; 
+}
+
+div.side > span.header
+{
+    display: block;
+}
+
+div.side > span.header,
+div.form.header > span
+{
+    font-weight: bold;
+}
+
+div.popup div.header > span#headerText,
+div.popup div.header > span.title,
+div.popup div.header th.title
+{
+    font-size:larger; 
+    font-weight:bold;
+}
+
+table.listContainer tr.content
+{
+    background-color: white;
+}
+
+table.listContainer tr.header td,
+table.listContainer tr#footer td
+{
+	border-top-style: solid; 
+	border-top-width: 1px; 
+	border-bottom-style: solid; 
+	border-bottom-width: 1px; 
+	vertical-align: middle;
+}
+
+table.listContainer tr.header td.left,
+table.listContainer tr#footer td.left
+{
+	border-left-style: solid; 
+	border-left-width: 1px; 
+	text-align:left;
+}
+
+table.listContainer tr.header td.right,
+table.listContainer tr#footer td.right,
+table.listContainer tr.header td.empty /*ensure consistent border around empty header (style is toggled in PagingContainer->_pager.PropertyChanged(Visible))*/
+{
+	border-right-style: solid; 
+	border-right-width: 1px; 
+}
+
+.tabControl table.listContainer tr.header td.empty
+{
+    border-width: 0 !important; 
+    background-color: transparent !important;
+}
+
+div.side > span.header,
+div.side > a.folder,
+div.form.header,
+table td.center
+{
+    text-align:center;
+}
+
+table td.left,
+table th.left,
+table.view > tbody > tr.header > th,
+div.popup div.header > span#headerText
+{
+    text-align:left;
+}
+
+table td.right,
+table th.right
+{
+	text-align:right;
+}
+
+span,
+table th, table td 
+{ 
+    padding: 0px 0px 0px 0px; /*cellpadding*/
+}
+
+div.form,
+table.listContainer tr.header td,
+table.listContainer tr#footer td
+{
+	padding: 3px 5px 3px 5px;    
+}
+
+div.popup,
+div.popup div.header.indented,
+fieldset,
+table.thumbnail,
+ul.img-edit > li 
+{
+    border-radius: 5px;
+    -moz-border-radius: 5px;
+    -webkit-border-radius: 5px;
+}
+
+div.popup div.header
+{
+    border-top-left-radius: 5px;
+    border-top-right-radius: 5px;
+    -moz-border-radius-topright: 5px;
+    -moz-border-radius-topleft: 5px;
+    -webkit-border-top-right-radius: 5px;
+    -webkit-border-top-left-radius: 5px;
+}
+
+div.popup div.footer
+{
+    border-bottom-left-radius: 5px;
+    border-bottom-right-radius: 5px;
+    -moz-border-radius-bottomright: 5px;
+    -moz-border-radius-bottomleft: 5px;
+    -webkit-border-bottom-right-radius: 5px;
+    -webkit-border-bottom-left-radius: 5px;
+}
+
+fieldset
+{
+    margin: 0;
+	padding: 2px 5px 5px 5px;
+}
+
+fieldset legend
+{
+	padding-bottom: 2px;
+}
+
+table.preview > thead > tr > th 
+{
+	text-align:left;
+	padding: 5px;
+}
+
+table.preview > tbody > tr > td
+{
+	 padding: 5px 5px 5px 5px;
+	 vertical-align: top;
+}
+
+table.form input.error,
+table.form textarea.error,
+table.form select.error,
+table.form div.field,
+table.form span.field,
+table.form input[type=file],
+table.view th,
+table.view td,
+table.attributes th,
+table.attributes td,
+div.side > table td,
+div.side > span.header,
+div.side > span.content,
+div.form.header > span,
+ul.productStats > li
+{
+    padding: 2px;
+}
+
+div.side
+{
+    min-width: 150px;
+}
+
+div.side.left
+{
+    /*margin-right:10px;*/
+    max-width: 250px;
+}
+
+div.side.right
+{
+    margin-left:10px;
+    max-width: 180px;
+    white-space:normal;
+}
+
+table.attributes td.values
+{
+    padding: 0px !important;
+}
+
+table.form select {
+	padding: 1px 1px 1px 1px;
+}
+
+/*Seems to only be used in 3 Home pages
+table.form th 
+{
+	vertical-align:middle;
+	text-align:left;
+}*/
+
+table.attributes td.label, 
+table.form td.label 
+{
+	padding: 2px 5px 2px 0px;
+	vertical-align:middle;
+	text-align:right;
+	white-space:nowrap;
+}
+
+table.form td.value, 
+table.attributes td.value
+{
+    padding: 2px 0px 2px 5px;
+	vertical-align:middle;
+	text-align:left;
+}
+
+table.form td.value select 
+{
+	margin-top:3px;
+}
+
+table.form label.error
+{
+	font-style: italic;
+}
+
+table.form input.error,
+table.form textarea.error,
+table.form select.error,
+table.form div.error,
+table.form table.error,
+table.form td.error
+{
+    border-style: dotted !important;
+	border-width: 1px;
+}
+
+/*.page-footer > table,*/
+table.form td.header, 
+div.header, 
+div.footer, 
+.center,
+table.search.form,
+div.popup table.form
+{
+    margin-left: auto;
+    margin-right: auto;
+}
+
+.page-footer > table td
+{
+    padding-top:5px;
+}
+
+div.context > *
+{
+    display:inline-block;
+    vertical-align:middle;
+}
+
+.page-footer > table,
+table.form td.header, 
+div.form.header, 
+.buttonPanel, 
+fieldset.center,
+table.search.form th
+{
+	text-align: center;
+}
+
+div.buttonPanel.right
+{
+    text-align:right;
+}
+
+div.popup
+{
+    position:fixed;
+    box-shadow: 2px 2px 1px #222222;
+    -webkit-box-shadow: 2px 2px 1px #222222;    
+}
+
+.buttonPanel
+{
+    padding: 10px;
+}
+
+div.popup div.header.indented
+{
+	margin: 2px;
+}
+
+div.popup div.content
+{
+	padding: 15px;
+    overflow: auto;
+}
+
+div.popup div.header,
+div.popup div.footer
+{
+    padding: 8px;
+}
+
+div.popup #error
+{
+    text-align:center; 
+    display:block;
+    margin:10px 10px 0px;
+}
+
+span
+{ 
+    margin: 0px 0px 0px 0px;
+}
+
+/*review this*/
+div.form, 
+div.form.footer,
+fieldset.xtra
+{
+    margin-top: 15px;
+}
+
+div.header
+{
+    margin-top: 0px !important;
+}
+
+fieldset.form
+{
+    margin-top: 5px;
+    float:left;
+}
+
+div.thumbnails
+{
+    text-align:center;
+    /*overflow: auto; if images float*/
+}
+
+table.thumbnail,
+ul.img-edit > li
+{
+    border-color: transparent;
+    vertical-align: top;
+}
+table.thumbnail td:first-child
+{
+    padding: 5px 5px 1px; 
+}
+table.thumbnail td+td
+{
+    padding: 1px 5px 5px; 
+}
+
+table.list th.header
+{
+	border-style: solid;
+	border-width: 1px;
+	font-weight: normal;
+	text-align: left;
+    padding: 2px;
+}
+
+table.list td.name
+{
+	padding:2px 2px 2px 0;
+}
+
+table.list td.value
+{
+	padding:2px 0 2px 2px;
+}
+
+table.list td.meta
+{
+	padding:2px 0 2px 4px;
+}
+
+table.preview th,
+table.messages th,
+table.messages td
+{
+	text-align:left;
+}
+
+/*For FireFox http://geekswithblogs.net/timh/archive/2006/04/19/75606.aspx*/
+table.form td.header, div.header, div.footer, fieldset.center
+{
+	text-align: -moz-center;
+}
+
+table.form td.header, div.header
+{
+	font-weight:bold;
+}
+
+table.form td.value input[type=text], 
+table.form td.value input[type=password], 
+table.list td.value input 
+{
+	width:150px;
+}
+
+table.form td.value select, table.list td.value select {
+	width:155px;
+}
+
+.tabControl > div.tabPanel > ul
+{
+    list-style-type: none;
+    z-index: 1;
+    position:relative;
+    padding: 0px 0px 0px 0px;
+    margin-left: 2px;
+    margin-right: 2px;
+}
+
+/*IE 7 (IE8+ in compatibility mode) won't support inline-block on li*/
+div.tabPanel > ul > li,
+table.thumbnail,
+ul.img-edit > li 
+{
+    /*float:left;*/ display:inline-block;
+}
+
+/*IE 7 (IE8+ in compatibility mode) won't support inline-block*/
+div.tabPanel > ul > li
+{
+    padding: 2px 6px 2px 6px; 
+}
+
+div.tabPanel > ul > li.selected
+{
+    z-index: 1;
+    position: relative;
+    padding: 3px 8px 3px 8px; 
+    margin-left: -2px;
+    margin-right: -2px;
+}
+
+div.tabPanel > ul > li > span:first-child
+{
+    cursor: pointer;
+}
+
+div.tabPanel > ul > li > span:first-child:hover
+{
+    cursor: hand;
+}
+
+div.tabPanel > ul > li.selected > span:first-child:hover
+{
+    cursor: default !important;
+}
+
+.tabControl.top > div.content
+{
+    padding: 5px 5px 5px 5px;
+}
+
+.tabControl.top > div.content 
+{
+    border-bottom-right-radius: 3px;
+    border-bottom-left-radius: 3px;
+    -moz-border-radius-bottomright: 3px;
+    -moz-border-radius-bottomleft: 3px;    
+    -webkit-border-bottom-left-radius: 3px;
+    -webkit-border-bottom-right-radius: 3px;
+}
+
+.tabControl.subtle > div.content 
+{
+    border-width: 1px 0 0 0 !important;
+}
+
+.tabControl.bottom > div.content 
+{
+    border-top-right-radius: 3px;
+    border-top-left-radius: 3px;
+    -moz-border-radius-topright: 3px;
+    -moz-border-radius-topleft: 3px;    
+    -webkit-border-top-left-radius: 3px;
+    -webkit-border-top-right-radius: 3px;
+}
+
+.tabControl.borderless > div.content
+{
+	border-style: none !important;
+	border-width: 0px !important;
+    border-bottom-right-radius: 0px !important;
+    border-bottom-left-radius: 0px !important;
+    -moz-border-radius-bottomright: 0px !important;
+    -moz-border-radius-bottomleft: 0px !important;    
+    -webkit-border-bottom-left-radius: 0px !important;
+    -webkit-border-bottom-right-radius: 0px !important;
+    padding: 0px 0px 0px 0px !important;	
+}
+
+.tabControl.top > div.tabPanel > ul
+{
+    margin-top: 2px;
+    margin-bottom: -1px;
+}
+
+.tabControl.top > div.tabPanel > ul > li
+{
+    border-bottom-width: 0px; 
+    border-top-right-radius: 3px;
+    border-top-left-radius: 3px;
+    -moz-border-radius-topright: 3px;
+    -moz-border-radius-topleft: 3px;    
+    -webkit-border-top-left-radius: 3px;
+    -webkit-border-top-right-radius: 3px;    
+}
+
+.tabControl.top > div.tabPanel > ul > li.selected
+{
+    margin-top: -2px;
+    margin-bottom: 0px;
+}
+
+.tabControl.bottom > div.tabPanel > ul
+{
+    margin-top: -1px;
+    margin-bottom: 2px;
+}
+
+.tabControl.bottom > div.tabPanel > ul > li
+{
+    border-top-width: 0px; 
+    border-bottom-right-radius: 3px;
+    border-bottom-left-radius: 3px;
+    -moz-border-radius-bottomright: 3px;
+    -moz-border-radius-bottomleft: 3px;    
+    -webkit-border-bottom-left-radius: 3px;
+    -webkit-border-bottom-right-radius: 3px;       
+}
+
+.tabControl.bottom > div.tabPanel > ul > li.selected
+{
+    margin-top: 0px;
+    margin-bottom: -2px;
+}
+
+ul.img-edit 
+{
+    margin-left:0;
+    padding:0;
+}
+
+ul.img-edit > li 
+{
+    position:relative;
+    padding:4px;
+}
+
+div.img-default-border 
+{
+    display:none;
+    position:absolute;
+    top:3px;
+    left:3px;
+    bottom:3px;
+    right:3px;
+    border:solid 2px darkblue;
+}
+
+span.img-controls 
+{
+    display:none;
+    overflow:hidden;
+	position:absolute;
+    margin-left:auto;
+    margin-right:auto;
+    z-index:1;
+    bottom:3px;
+    width:50px;left:50%;margin-left:-25px;
+    /*left: 0; right: 0; margin: 0 auto;*/
+}
+
+/*http://stackoverflow.com/questions/6584004/remove-extra-space-at-bottom-of-html-list-item*/
+ul.img-edit > li > img,
+ul.img-edit > li.default > div.img-default-border  
+{
+    display: block;
+}
+
+ul.img-edit > li:hover > span.img-controls 
+{
+    display: inline;
+}
+
+.img-controls > a 
+{
+    background-image: url('../images/imageEdit.png') !important;
+    background-repeat: no-repeat;
+}
+
+ul.stackPanel > li,
+ul.productStats > li,
+ul.img-edit > li
+{
+    list-style-type: none;
+}
+
+ul.treeView li
+{
+    margin: 3px 0px 3px 0px; /*affected by span.expander height/font-size*/
+}
+
+ul.listBox > li
+{
+    margin: 5px 0px 5px 0px;
+}
+
+div.side > div#folders
+{
+    padding: 3px 5px 3px 0px;
+}
+
+ul.treeView li > ul
+{
+    margin-left: 15px;
+    margin-bottom: 3px;
+}
+
+ul.treeView li > a,
+ul.listBox > li > a
+{
+	-webkit-border-radius: 2px; 
+	-moz-border-radius: 2px;
+	border-radius: 2px;
+    padding: 2px 5px 2px 5px;
+    vertical-align: middle;
+}
+
+ul.treeView li > span.expander,
+ul.treeView li > span.expanderPlaceholder,
+span.lock,
+div.item-dropDown a.drillDown,
+div.item-dropDown a.drillUp,
+span.pager > a#prevPage,
+span.pager > a#nextPage,
+table.imageSlider a#prevPage,
+table.imageSlider a#nextPage,
+table.imageFlipView a#prevImage,
+table.imageFlipView a#nextImage,
+.image-button
+{
+    font-size: 0;
+    display:inline-block;
+    vertical-align: middle;
+}
+
+ul.treeView li > span.expander,
+ul.treeView li > span.expanderPlaceholder,
+span.lock,
+div.item-dropDown a.drillDown,
+div.item-dropDown a.drillUp,
+span.pager > a#prevPage,
+span.pager > a#nextPage,
+.image-button
+{
+    width: 22px;
+    height: 22px;
+}
+
+table.imageSlider a#prevPage,
+table.imageSlider a#nextPage,
+table.imageFlipView a#prevImage,
+table.imageFlipView a#nextImage
+{
+    width: 25px;
+    height: 25px;
+}
+
+span.pager > a#prevPage,
+span.pager > a#nextPage,
+table.imageSlider a#prevPage,
+table.imageSlider a#nextPage,
+table.imageFlipView a#prevImage,
+table.imageFlipView a#nextImage
+{
+    background-image: url('../images/pagerLeftRight.png') !important;
+    background-repeat: no-repeat;
+}
+
+table.imageSlider a#prevPage.active,
+table.imageFlipView a#prevImage.active
+{
+    background-position: 0 0px;
+}
+
+span.pager > a#prevPage,
+span.pager > a#prevPage.active
+{
+    background-position: -1px -1px;
+}
+
+span.pager > a#nextPage,
+span.pager > a#nextPage.active
+{
+    background-position: -23px -1px;
+}
+
+span.pager > a#prevPage.active:hover
+{
+    background-position: -1px -23px;
+}
+
+span.pager > a#nextPage.active:hover
+{
+    background-position: -23px -23px;
+}
+
+span.pager > a#prevPage[disabled],
+span.pager > a#prevPage:disabled
+{
+    background-position: -1px -67px;
+}
+
+span.pager > a#nextPage[disabled],
+span.pager > a#nextPage:disabled
+{
+    background-position: -23px -67px;
+}
+
+table.imageSlider a#nextPage,
+table.imageSlider a#nextPage.active,
+table.imageFlipView a#nextImage,
+table.imageFlipView a#nextImage.active
+{
+    background-position: -22px 0px;
+}
+
+table.imageSlider a#prevPage.active:hover,
+table.imageFlipView a#prevImage.active:hover
+{
+    background-position: 0 -22px;
+}
+
+table.imageSlider a#nextPage.active:hover,
+table.imageFlipView a#nextImage.active:hover
+{
+    background-position: -22px -22px;
+}
+
+table.imageSlider a#prevPage[disabled],
+table.imageSlider a#prevPage:disabled,
+table.imageFlipView a#prevImage[disabled],
+table.imageFlipView a#prevImage:disabled
+{
+    background-position: 0 -66px;
+}
+
+table.imageSlider a#nextPage[disabled],
+table.imageSlider a#nextPage:disabled,
+table.imageFlipView a#nextImage[disabled],
+table.imageFlipView a#nextImage:disabled
+{
+    background-position: -22px -66px;
+}
+
+ul.groupSelect li > a > span.drillDown
+{
+    font-size: 0;
+    width: 11px;
+    height: 11px;
+    display:inline-block;
+    vertical-align: middle;
+}
+
+ul.groupSelect li > a > span.drillDown
+{
+    background-image: url('../images/groupDrillDown.png');
+    background-repeat: no-repeat;
+}
+
+ul.groupSelect li > a:hover > span.drillDown
+{
+    background-position: 0 -11px;
+}
+
+div.item-dropDown a.drillDown,
+div.item-dropDown a.drillUp,
+ul.treeView li > span.expander,
+span.lock
+{
+    background-image: url('../images/folder.png') !important;
+    background-repeat: no-repeat;
+}
+
+ul.treeView li > span.expander.collapsed
+{
+    background-position: 0 0px;
+}
+
+ul.treeView li > span.expander.collapsed:hover
+{
+    background-position: 0 -22px;
+}
+
+ul.treeView li > span.expander.expanded
+{
+    background-position: 0 -44px;
+}
+
+span.lock
+{
+    background-position: -22px -44px;
+}
+
+div.item-dropDown a.drillDown
+{
+    background-position: -22px 0;
+}
+
+div.item-dropDown a.drillUp
+{
+    background-position: -44px 0;
+}
+
+div.item-dropDown a.drillDown:hover
+{
+    background-position: -22px -22px;
+}
+
+div.item-dropDown a.drillUp:hover
+{
+    background-position: -44px -22px;
+}
+
+.rte-color-box {
+	display:inline-block;
+    width:16px;
+    height:16px;
+}
+
+div.dropDownPopup > .rte-color-box
+{
+    display:inline-block;
+    margin: 3px;
+}
+
+div.dropDownPopup > .rte-font-opt
+{
+    display:block;
+    margin: 5px;
+}
+
+/*.rte.tabControl
+{
+    overflow: auto;
+    resize: both;
+}*/
+
+.fill-container,
+.fill-header,
+.fill-content-wrap,
+.rte.tabControl
+{
+    position:relative;
+}
+
+.fill-container.fill-parent
+{
+    top:0;
+    left:0;
+    right:0;
+    bottom:0;
+}
+
+.fill-content-wrap,
+.fill-parent
+{
+    width:100%;
+    height:100%;
+}
+
+.fill-content-top,
+.rte.tabControl > div.content
+{
+    position:absolute;
+    top:0;
+    left:0;
+    right:0;
+}
+
+.rte.tabControl > div.content
+{
+    padding: 0;
+}
+
+.fill-footer,
+.fill-content-bottom,
+.rte.tabControl > div.tabPanel
+{
+    position:absolute;
+    left:0;
+    right:0;
+    bottom:0;
+}
+
+.rte-toolbar
+{
+	border-bottom-style: solid;
+	border-bottom-width: 1px;
+    padding: 3px;
+    white-space: nowrap;
+    overflow-y:hidden;
+}
+
+button.rte-button,
+button.form-button
+{
+    font-family: Verdana,Arial,sans-serif;
+    font-size:12px;
+    height: 24px;
+    min-width: 24px;
+}
+
+.rte-wysiwyg
+{
+    padding: 2px;
+    overflow:auto;
+}
+
+button.rte-button.toggle.pressed
+{
+}
+
+span.rte-button-image
+{
+    background-image: url('../images/rte.png');
+    background-repeat: no-repeat;
+}
+
+.rte-button-content+.rte-button-content
+{
+    margin-left: -2px;
+}
+
+.rte-tb-standalone
+{
+    display: inline-block;
+}
+
+.rte-tb-standalone + .rte-tb-standalone
+{
+    margin-left: 4px;
+}
+
+/*Admin Offensive List*/
+.valign-parent
+{
+    vertical-align:middle; 
+    position:relative;
+}
+
+.valign-child
+{
+    position:absolute;
+}

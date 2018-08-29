@@ -1,0 +1,488 @@
+@{
+    Page.SessionRequired = true;
+    Page.Title = String.Format(Resource.Global.Page_TitleFormat, Resource.Global.My_Products);
+    Layout = "~/Layout/_LCRPanel.cshtml";
+}
+
+@section head {
+@*Not tested<script src="http://maps.googleapis.com/maps/api/js?key=AIzaSyD-24GCNOxOz5iq1_SmYK5sgHPpAgnwZos" type="text/javascript"></script>*@
+<script src="http://maps.googleapis.com/maps/api/js?libraries=places" type="text/javascript"></script>
+<script src="~/JS/Common/Geocoder.js" type="text/javascript"></script>
+<script src="~/JS/Admin.js" type="text/javascript"></script>
+<script type="text/javascript">
+    Geocoder = {};
+
+    Product = {
+        Editor: Foundation.Editor.extend({
+            ctor: function () {
+                Foundation.Editor.prototype.ctor.call(this);
+                this.actionPanel = new Controls.Action.Panel();
+                this._confirmDelete = new Foundation.Controls.Confirm.Form();
+                this._confirmDelete.MessageFormat = "@Resource.Product.Ad_Confirm_Delete";
+
+                this.confirmCategory = new Foundation.Controls.Confirm.Form();
+                this.confirmCategory.MessageFormat = "@Resource.Product.Category_Confirm_Change";
+                this.guidelines = new Foundation.Controls.Confirm.Form();
+                @*this.guidelines.ContentTemplate = '@Html.Raw(System.IO.File.ReadAllText(Server.MapPath("~/product/guidelines.htm")))'; //Unterminated string constant*@
+                this.guidelines.OptionText("@Resource.Global.Do_Not_Show_Again");
+                this.guidelines.CommandText("@Resource.Action.Ok");
+
+                this.categories = new Foundation.Controls.Group.Select(User.Service.Master.Category);
+                this.category = new Foundation.Controls.Group.Edit(User.Service.Master.Category, this.categories);
+                this.location = new Foundation.Controls.Location.Edit(/*this*/);
+                this.location.Requirement = Model.Address.Requirement.PostalCode;
+
+                this.status = new Controls.Product.Status();
+                this.productStats = new Controls.Product.Stats();
+                this.product = new Controls.Product.Edit(/*this*/);
+
+                this.communities = new Controls.Action.CommunityProduct();
+                this.confirmCommunity = this.communities.$popupForm;
+                this.confirmCommunity_Category = this.communities.CommunityCategory;
+            },
+
+            ValidatorOptions: {
+                ignore: '' //to validate hidden category input
+            },
+
+            validationElement: function (elementName) {
+                if (elementName == "category") {
+                    return this.category.$container;
+                }
+            },
+
+            $validationItems: {},
+
+            ProductIsActive: function () {
+                return this._mode == Foundation.EditMode.Edit && this.Product.Id > 0 && this.Product.Status == Model.Product.Status.Active;
+            },
+
+            LocationSettings: function (locationSettings) {
+                this.locationSettings = locationSettings;
+                this.product.LocationSettings(locationSettings);
+            },
+
+            ValidateOrRedirect: function (token) {
+                if (this.ValidateRequest(token))
+                {
+                    if (token.Action == Model.Session.Action.ProductNew && !Session.User.CategoryId) {
+                        return Navigation.Product.Category(token, true);
+                    }
+                    return true;
+                }
+                return false;
+            },
+
+            Initialize: function (options) {
+                Foundation.Editor.prototype.Initialize.call(this, $.extend(options || {}, {
+                    actionPanel: {
+                        container: $('#actionPanel')
+                    }
+                }));
+
+                this._saveDraft = $('#saveDraft');
+                this._archive = $('#archive');
+
+                var $this = this;
+                if (this.guidelines) {
+                    this.guidelines.Show = function () {
+                        if (!$this.guidelines.loaded) {
+                            $.get("/product/guidelines.htm", function (result) {
+                                $this.guidelines.loaded = true;
+                                $this.guidelines.ContentTemplate = result;
+                                Foundation.Controls.Confirm.Form.prototype.Show.call($this.guidelines);
+                            });
+                        }
+                        else
+                            Foundation.Controls.Confirm.Form.prototype.Show.call($this.guidelines);
+                    };
+                    this.guidelines.Submit = function () {
+                        if ($this.guidelines.OptionChecked()) {
+                            if (Session.User.Id > 0) {
+                                User.Service.Master.Account.AcknowledgeGuidelines(Model.AccountOption.Suppress_Product_Guidelines, function (success) {
+                                    $this.guidelines.SubmitComplete();
+                                    if (success)
+                                        Session.User.SuppressGuidelines = true;
+                                }, jQuery.proxy($this.guidelines.Invalidate, $this.guidelines));
+                                return;
+                            }
+                            else
+                                Session.User.SuppressGuidelines = true;
+                        }
+                        $this.guidelines.SubmitComplete();
+                    };
+                    this.guidelines.Cancel = function () {
+                        $this.guidelines.Hide();
+                        $this.onCommand("Cancel");
+                    };
+                }
+                this.communities.ItemSelected = function (community, itemType) {
+                    if (!$this.SessionIsValid()) return;
+
+                    if (community.Id > 0 && $this.ProductIsActive()) {
+                        Admin.Service.Community.Profile.Get(community.Id, function (cachedCommunity) {
+                            if (cachedCommunity && Admin.Service.Community.Profile.CanProduce(cachedCommunity)) {
+                                $this.confirmCommunity.Content["Community"] = community.Name;
+                                $this.confirmCommunity.CommandArgument = community.Id;
+                                $this.confirmCommunity_Category.Community(community.Id);
+                                //$this.confirmCommunity_Category.Allow_PostProducts_Uncategorized = cachedCommunity.Allow_PostProducts_Uncategorized;
+                                //_confirmCommunity_Category.Text = null;
+                                $('#overwrite', $this.confirmCommunity.$container).prop('checked', false);
+                                $this.confirmCommunity.Show();
+                            }
+                        });
+                    }
+                    else if (community.Id == 0)
+                        Navigation.Community.ProfileNew(Session.User.Business.Id > 0 ? Model.AccountType.Business : Model.AccountType.Personal);
+                };
+                this.confirmCommunity.Submit = function () {
+                    if ($this.SessionIsValid() && $this.ProductIsActive()) {
+                        var community = $this.confirmCommunity.CommandArgument;
+                        if (community > 0) {
+                            Admin.Service.Community.Profile.Get(community, function (cachedCommunity) {
+                                if (cachedCommunity && Admin.Service.Community.Profile.CanProduce(cachedCommunity)) {
+                                    var confirmCommunity_Category = $this.confirmCommunity_Category.Value;
+                                    if (confirmCommunity_Category/* || cachedCommunity.Allow_PostProducts_Uncategorized*/) {
+                                        var productText = $('#productText', $this.confirmCommunity.$container).val();
+                                        overwrite = $('#overwrite', $this.confirmCommunity.$container).prop('checked') ? true : false;
+                                        Admin.Service.Community.Product.Add(community, (confirmCommunity_Category ? confirmCommunity_Category.Id : 0), $this.Product.Id, productText, overwrite, function (success) {
+                                            $this.confirmCommunity.SubmitComplete();
+                                        }, jQuery.proxy($this.confirmCommunity.Invalidate, $this.confirmCommunity));
+                                    }
+                                    else
+                                        $this.confirmCommunity.Invalidate(new Foundation.Exception.ArgumentException(Foundation.Exception.ArgumentException.Type.ValueRequired, "Category"));
+                                }
+                                else
+                                    $this.confirmCommunity.Invalidate(new Foundation.Exception.SessionException(Foundation.Exception.SessionException.Type.Unauthorized));
+                            });
+                            return;
+                        }
+                    }
+                    throw new Foundation.Exception.OperationException(Foundation.Exception.OperationException.Type.Invalid);
+                };
+
+                this.category.Initialize($('#categoryPlaceholder'));
+                this.confirmCategory.Submit = function () {
+                    $this.changeCategory($this.confirmCategory.CommandArgument/*, true*/, $this.confirmCategory.Invalidate);
+                    $this.confirmCategory.SubmitComplete();
+                };
+
+                this.categories.GroupSelected = function (category) {
+                    if ($this.Product.Id > 0 || $this.Product.Master.Category > 0) {
+                        $this.confirmCategory.CommandArgument = category.Id;
+                        $this.confirmCategory.Show();
+                    }
+                    else
+                        $this.changeCategory(category.Id/*, false*/);
+                };
+
+                //Ref: Account._Create
+                this.location.Initialize($('#addressPlaceholder'));
+                //Or use page's form (form master passed in ctor above)
+                //this.location.Container = $('#addressPlaceholder');
+                //this.location.Initialize(this.location.Container);
+                //May need review
+                this.location.Changed = function (location) {
+                    //Use RequireCounty at State level - not currenly needed
+                    var countryId = Settings.Location.Country;
+                    if (location) {
+                        var country = Model.Location.Country.call(location); //location.Country
+                        if (country)
+                            countryId = country.Id;
+                    }
+
+                    //sequence managing is done in FetchOneCache class
+                    //two subsequent requests to the cache for with different keys 1 and 2
+                    //If first is a miss it will start asynchronous fetch
+                    //If second is a hit and returns requested data immediately
+                    //asynchronous fetch for first comes back out-of-sequence and may overwrite UI
+                    User.Service.Master.Location.GetSettings(countryId, function (locationSettings) {
+                        $this.LocationSettings(locationSettings);
+                    });
+                    //LocationSettings2 = Settings.Instance.Location.GetSettings(e.Location);
+                };
+
+                this.product.Initialize($('#productPlaceholder'));
+                //Or use page's form (form master passed in ctor above)
+                //this.product.Container = $('#productPlaceholder');
+                //this.product.Initialize(this.product.Container);
+            },
+
+            changeCategory: function (categoryId/*, afterConfirm*/, faultCallback) {
+                this.Product.Master.Category = categoryId;
+                this.category.Populate(categoryId/*, !afterConfirm*/);
+
+                var $this = this;
+                Admin.Service.Master.Category.GetProductConfig(categoryId, function (productConfig) {
+                    $this.product.ProductConfig(productConfig);
+                }, faultCallback);
+            },
+
+            Entity: function (entity) {
+                if (entity) {
+                    Product.Editor.prototype.populate.call(this, entity);
+                }
+                return Foundation.Editor.prototype.Entity.call(this, entity);
+            },
+
+            populate: function (product) {
+                var productId = product.Id;
+                if (!productId) {
+                    product.Master.Category = Session.User.CategoryId;
+
+                    //$('#status').hide();
+                }
+                else {
+                    $('#productId').text(productId).parent('td').show();
+                    $('.productName').text(product.Master.Title);
+                    this._confirmDelete.Content["Product"] = product.Master.Title;
+
+                    if (product.Address.Location == 0 && product.Account.AccountType != Model.AccountType.Business)
+                        throw new Foundation.Exception.ArgumentException(Foundation.Exception.ArgumentException.Type.Invalid, "Location");
+
+                    this.status.Populate(product, $('#status'));
+                }
+
+                this.category.Populate(product.Master.Category);
+                if (this.category.Enabled() != product.IsMasterOwned)
+                    this.category.Enabled(product.IsMasterOwned);
+                this.categories.Populate(product.Master.Category);
+
+                this.location.Populate(product.Address);
+
+                var $this = this;
+                Admin.Service.Master.Category.GetProductConfig(product.Master.Category, function (productConfig) {
+                    $this.product.Populate(product, productConfig);
+                });
+            },
+
+            EvaluateActions: function (reset) {
+                Foundation.Page.prototype.EvaluateActions.call(this, reset);
+                var $this = this;
+                if (this.Product.Account.Id > 0 && Session.User.Id > 0) {
+                    Session.EvaluateQuota(this.Product.Account.AccountType, function (productStats) {
+                        $this.productStats.Populate(productStats, $('#rightFrame'));
+                    });
+                }
+                else if (this.productStats.Visible())
+                    this.productStats.Visible(false);
+
+                if (!Session.User.SecurityProfile.AutoPost) {
+                    this.Product.PendingStatus |= Model.Product.PendingStatus.PeerReview;
+                    $('#approvalRequired').show();
+                }
+                else {
+                    if ((this.Product.PendingStatus & Model.Product.PendingStatus.PeerReview) > 0)
+                        this.Product.PendingStatus &= ~Model.Product.PendingStatus.PeerReview;
+                    $('#approvalRequired').hide();
+                }
+            },
+
+            enableEdit: function (mode) {
+                if (this._mode == Foundation.EditMode.New) {
+                    this.product.Enabled(true);
+                }
+                else if (this._mode == Foundation.EditMode.Edit) {
+                    var productStatus = Product.Status;
+
+                    if (productStatus == Model.Product.Status.Rejected || productStatus == Model.Product.Status.Deleted) {
+                        this.category.Enabled(false);
+                        this.location.Enabled(false);
+                        this.product.Enabled(false);
+                        this.product.EnabledAttributes(Controls.Product.Attribute.EnabledType.None);
+                    }
+                    else {
+                        this.product.EnabledAttributes(Controls.Product.Attribute.EnabledType.Full);
+                    }
+
+                    if (!(productStatus == Model.Product.Status.Archived || productStatus == Model.Product.Status.Archived))
+                        this._archive.show();
+                    else
+                        this._archive.hide();
+
+                    if (productStatus != Model.Product.Status.Deleted)
+                        this._delete.show();
+                    else
+                        this._delete.hide();
+                }
+                Foundation.Editor.prototype.enableEdit.call(this, mode);
+            },
+
+            Ready: function (ready) {
+                Foundation.Editor.prototype.Ready.call(this, ready);
+                if (!ready) {
+                    setDisabled(this.$submit, true);
+                    setDisabled(this._saveDraft, true);
+                    setDisabled(this._archive, true);
+                    setDisabled(this._delete, true);
+                }
+                else {
+                    switch (this.Product.Status) {
+                        case Model.Product.Status.Draft:
+                            setDisabled(this.$submit, false);
+                            setDisabled(this._saveDraft, false);
+                            setDisabled(this._delete, false);
+                            break;
+                        case Model.Product.Status.Pending:
+                        case Model.Product.Status.Active:
+                            setDisabled(this.$submit, false);
+                            setDisabled(this._archive, false);
+                            setDisabled(this._delete, false);
+                            break;
+                        case Model.Product.Status.Rejected:
+                            setDisabled(this._delete, false);
+                            break;
+                        case Model.Product.Status.Archived:
+                            setDisabled(this._saveDraft, false);
+                            setDisabled(this._delete, false);
+                            break;
+                    }
+                }
+            },
+
+            Validate: function (proceed, ctx) {
+                //Ref: Account._Create
+                $('label[for=location]', this.$container).removeClass('errorLabel');
+                this.location.$errorInfo.Clear(); //Clear location error before $validator.form() method, otherwise it will show "Warning: No message defined for location"
+                this.$validationItems.LocationSettings = this.locationSettings;
+
+                var $this = this;
+                var mv = ctx.MultiValidator();
+                mv.AddStep(function (proceed_, param) {
+                    $this.location.ValidateStep(function (locationValid) {
+                        if (!locationValid || !$this.location.Geolocation) {
+                            $('label[for=location]', $this.$container).addClass('errorLabel');
+                            proceed_(false, param);
+                        }
+                        else { @*Resolve Location.Id on the server*@
+                            $this.location.Resolve(function (locationValid) {
+                                if (!locationValid || !$this.location.$address) {
+                                    $('label[for=location]', $this.$container).addClass('errorLabel');
+                                    proceed_(false, param);
+                                }
+                                else
+                                    proceed_(true, param);
+                            });
+                        }
+                    }, param);
+                });
+                mv.AddStep(function (proceed_, param) { //Foundation.Controls.Group.Edit doesn't extend Validation.Control
+                    $this.category.Validate(function (categoryValid) {
+                        if (!categoryValid)
+                            $this.$errorInfo.SetError('category', "@String.Format(Resource.Product.Edit_Error_Select_X, Resource.Dictionary.Category)");
+                        proceed_(categoryValid, param);
+                    });
+                });
+
+                this.product.ValidationSteps(ctx);
+                /*for (var i = 0, l = this.product.ValidationSteps.length; i < l; i++) {
+                    mv.AddStep(this.product.ValidationSteps[i]);
+                }*/
+
+                var status = this.Product.Status;
+                if (!(this.Product.Id == 0 ||
+                    status == Model.Product.Status.Draft ||
+                    status == Model.Product.Status.Active ||
+                    status == Model.Product.Status.Pending ||
+                    status == Model.Product.Status.Archived))
+                    this.$errorInfo.SetError('', "@Resource.Product.Edit_Error_InvalidStatus");
+
+                proceed(/*this.$validator.form() && */!this.$errorInfo.HasErrors);
+            },
+
+            GetErrorMessage: function (error, data) {
+                switch (error) {
+                    case Foundation.ErrorMessageType.Session_QuotaExceeded:
+                        if (data["Quota"]) {
+                            var message = "@Resource.Product.Edit_Error_Quota_X_reached";
+                            switch (data["QuotaType"]) {
+                                case "Active":
+                                    message = "@Resource.Product.Edit_Error_Quota_X_Active_Reached";
+                                    break;
+                                case "Pending":
+                                    message = "@Resource.Product.Edit_Error_Quota_X_Pending_Reached";
+                                    break;
+                            }
+                            return String.format(message, data["Quota"]);
+                        }
+                        else
+                            return Foundation.Page.prototype.GetErrorMessage.call(this, error, data);
+                    default:
+                        return Foundation.Page.prototype.GetErrorMessage.call(this, error, data);
+                }
+            },
+
+            onCommand: function (command) {
+                switch (command) {
+                    case "SaveDraft":
+                        this.$errorInfo.Clear();
+                        var $this = this;
+                        new Foundation.Controls.Validation.Context(function (valid) {
+                            if (valid) {
+                                $this.Ready(false);
+                                try {
+                                    $this.Save(false);
+                                }
+                                catch (ex) {
+                                    $this.Invalidate(ex);
+                                }
+                            }
+                            else if ($this.$errorMessage)
+                                $this.$errorMessage.show();
+                        }).Validate(jQuery.proxy(this.Validate, this)); break;
+                        break;
+                    default:
+                        Foundation.Editor.prototype.onCommand.call(this, command);
+                        break;
+                }
+            }
+        })
+    }
+</script>
+@RenderSection("head", required: false)}
+
+@section headerFrame {
+<table style="width:100%; margin-bottom:5px;">
+    <tr>
+        <td class="noAccount-not" style="text-align: left; padding-bottom: 5px;">
+            <a class="href accountName" data-command="EditProfile"></a>&nbsp;&gt;&nbsp;<a class="href" data-command="EditProducts">@Resource.Dictionary.Ads</a>&nbsp;&gt;&nbsp;<span class="productName">@Resource.Personal.Ad_New</span>
+        </td>
+        <td style="text-align: right; float: right; width: auto; padding-bottom: 5px;">
+            <table>
+                <tr>
+                    <td style="display: none; padding-right: 5px;">@Resource.Dictionary.Id:&nbsp;<span id="productId"></span></td>
+                    <td id="status" style="display:none;">@Resource.Dictionary.Status: <span id="text"></span><span id="reason" style="display:none;">&nbsp;@Resource.Dictionary.Reason: <span id="reasonText"></span></span></td>
+                </tr>
+            </table>
+        </td>
+    </tr>
+</table>}
+
+@section rightFrame{
+@RenderSection("rightFrame", required: false)}
+<span id="successMessage" class="formSuccess" style="display:none; margin-bottom:5px;">@Resource.Global.Editor_Success</span>
+<span id="errorMessage" class="formError" style="display:none; margin-bottom:5px;">@Resource.Global.Editor_Error</span>
+<div class="form header"><span>@Resource.Personal.Ad</span></div>
+<form id="form" action="">
+    <div class="form">
+        <center>
+            <table class="form">
+                @RenderSection("productAttr1", required: false)
+            </table>
+        </center>
+    </div>
+    <fieldset id="productPlaceholder" class="xtra" style="margin-top:10px;">
+        <legend>@Resource.Dictionary.Details</legend>
+        <!--center id="productPlaceholder">
+        </center-->
+    </fieldset>
+    <div class="form footer buttonPanel">
+        <button type="button" id="saveDraft" data-command="SaveDraft" disabled><span class="button-content">@Resource.Action.Save_as_Draft</span></button>
+        <button type="button" id="submit" disabled><span class="button-content">@Resource.Action.Post</span></button>
+        <button type="button" id="cancel" data-command="Cancel" class="active"><span class="button-content">@Resource.Action.Cancel</span></button>
+        <button type="button" id="archive" data-command="Archive" style="display:none" disabled><span class="button-content">@Resource.Action.Archive</span></button>
+        <button type="button" id="delete" style="display:none" disabled><span class="button-content">@Resource.Action.Delete</span></button>
+    </div>
+    <span id="error" class="formError" style="display:none; margin-top:15px;">
+    </span>
+</form>

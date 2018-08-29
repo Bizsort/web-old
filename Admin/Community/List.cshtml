@@ -1,0 +1,215 @@
+﻿@{
+    Page.Title = String.Format(Resource.Global.Page_TitleFormat, Resource.Global.My_Communities);
+    Layout = "~/Layout/_LCRPanel.cshtml";
+}
+
+@section head {
+<script src="~/JS/Common/Geocoder.js" type="text/javascript"></script>
+<script type="text/javascript">
+    Page = new (Foundation.List.View.extend({
+        ctor: function () {
+            this.ApplicationPage = "/Admin/Community/List";
+
+            var confirmApprove = new Foundation.Controls.Confirm.Form();
+            confirmApprove.MessageFormat = "@Resource.Community.Request_Confirm_Approve";
+            confirmApprove.OptionTemplate = "<table><tr><td><label for=\"memberType\">@Resource.Dictionary.Member_type</label>&nbsp;<select id=\"memberType\" name=\"memberType\"></select></td></tr></table>";
+            var confirmApprove_Type = new Controls.Community.Member.SelectType(confirmApprove);
+            confirmApprove.OnApplyTemplate = function () {
+                confirmApprove_Type.Container = $('#memberType', confirmApprove.$container);
+                confirmApprove_Type.Initialize(confirmApprove_Type.Container, Model.Community.MemberType.Moderator);
+            };
+            var confirmDecline = new Foundation.Controls.Confirm.Form();
+            confirmDecline.MessageFormat = "@Resource.Community.Request_Confirm_Decline";
+            var requests = new Controls.Community.Requests();
+            requests.ConfirmApprove(confirmApprove);
+            requests.ConfirmDecline(confirmDecline);
+            this.requests = new Foundation.Controls.List.Container(requests);
+
+            var listView = new Controls.Community.ListView();
+            listView.Membership(true);
+            Foundation.List.View.prototype.ctor.call(this, listView);
+
+            var confirmLeave = new Foundation.Controls.Confirm.Form();
+            confirmLeave.MessageFormat = "@Resource.Community.Confirm_Leave";
+            listView.ConfirmLeave(confirmLeave);
+
+            $.views.helpers({
+                personalBusinessCommunities: Controls.Community.PersonalBusinessCommunities,
+                memberTypeConverter: Model.Community.MemberTypeText,
+                memberType: Model.Community.MemberType,
+                dateFormatter: Foundation.ValueConverter.DateFormatter
+            });
+        },
+
+        Initialize: function (options) {
+            //Call ReflectMenu before Page.Initialize
+            switch (this._token.AccountType) {
+                case Model.AccountType.Business:
+                    ReflectMenu(Navigation.Menu.MainItem.ItemType.Business, Navigation.Menu.SubItem.ItemType.Business_Communities);
+                    $('#personalBusinessCommunities').show();
+                    break;
+                case Model.AccountType.Personal:
+                    ReflectMenu(Navigation.Menu.MainItem.ItemType.Personal, Navigation.Menu.SubItem.ItemType.Personal_Communities);
+                    if (Session.User.Business.Id > 0) {
+                        $('#personalBusinessCommunities').show();
+                    }
+                    break;
+            }
+
+            $('.accountName').text(this.AccountName());
+
+            this.requests.Initialize($('#centerFrame'), { css: { marginBottom: '10px' } });
+            Foundation.List.View.prototype.Initialize.call(this, options);
+
+            var $this = this;
+
+            this.List.View.Refresh = jQuery.proxy(this.refresh, this);
+            this.List.View.ItemViewCommand = function (community) {
+                Admin.Service.Community.Profile.CanManage(community.Id, function (canManage) {
+                    if (canManage)
+                        Navigation.Community.ProfileEdit($this._token.AccountType, community.Id, $this._token);
+                    else
+                        Navigation.Community.ProfileView(community.Id);
+                });
+            };
+
+            this.requests.View.Refresh = jQuery.proxy(this.refresh, this);
+            this.requests.HeaderTemplate.ConverterParameter("{{:TotalCount}}");
+            this.requests.EmptyHeaderTemplate.ConverterParameter("{{:TotalCount}}");
+            switch (this._token.AccountType) {
+                case Model.AccountType.Business:
+                    this.requests.HeaderTemplate.Format("@Resource.Business.Community_Requests_HeaderFormat");
+                    this.requests.EmptyHeaderTemplate.Format("@Resource.Business.Community_Requests_HeaderFormat");
+                    this.List.HeaderTemplate.Format("@Resource.Business.Communities_HeaderFormat");
+                    this.List.EmptyHeaderTemplate.Format("@Resource.Business.Communities_EmptyHeaderFormat");
+                    break;
+                case Model.AccountType.Personal:
+                    this.requests.HeaderTemplate.Format("@Resource.Personal.Community_Requests_HeaderFormat");
+                    this.requests.EmptyHeaderTemplate.Format("@Resource.Personal.Community_Requests_HeaderFormat");
+                    this.List.HeaderTemplate.Format("@Resource.Personal.Communities_HeaderFormat");
+                    this.List.EmptyHeaderTemplate.Format("@Resource.Personal.Communities_EmptyHeaderFormat");
+                    break;
+            }
+        },
+
+        refresh: function () {
+            this.populate(0);
+        },
+
+        AccountName: function (accountName) {
+            if (accountName != undefined) {
+                this.accountName = accountName;
+            }
+            else
+                return this.accountName;
+        },
+
+        AccountType: function (accountType) {
+            if (accountType != undefined) {
+                this.accountType = accountType;
+                switch (accountType) {
+                    case Model.AccountType.Business:
+                        this.AccountName(Session.User.Business.Name);
+                        break;
+                    case Model.AccountType.Personal:
+                        this.AccountName(Session.User.Name);
+                        break;
+                }
+            }
+            else
+                return this.accountType;
+        },
+
+        SessionIsValid: function () {
+            if (this.accountType != undefined) {
+                switch (this.accountType) {
+                    case Model.AccountType.Business:
+                        return Session.User.Id > 0 && Session.User.Business.Id > 0 ? true : false;
+                    case Model.AccountType.Personal:
+                        return Session.User.Id > 0 ? true : false;
+                }
+            }
+            return false;
+        },
+
+        ValidateRequest: function (token) {
+            this.AccountType(token.AccountType);
+            if (this.SessionIsValid() && token.Action == Model.Session.Action.CommunitiesEdit) {
+                return true;
+            }
+            else
+                return false;
+        },
+
+        fetchList: function (queryInput, callback, faultCallback) {
+            var $this = this;
+            Admin.Service.Community.Profile.GetRequests(this._token.AccountType, function (requests) {
+                Admin.Service.Community.Profile.ToPreview_Request(requests, jQuery.proxy($this.requests.Populate, $this.requests));
+            });
+
+            Admin.Service.Community.Profile.GetList(this._token.AccountType, undefined, function (communities) {
+                callback({
+                    Series: jQuery.map(communities, function (c) {
+                        return c.Id;
+                    })
+                });
+            });
+        },
+
+        fetchPage: function (page, callback, faultCallback) {
+            Admin.Service.Community.Profile.ToPreview(page, callback, faultCallback);
+        },
+
+        onCommand: function (command) {
+            switch (command) {
+                case "EditProfile":
+                    if (this.SessionIsValid()) {
+                        switch (this._token.AccountType) {
+                            case Model.AccountType.Business:
+                                Navigation.Business.ProfileEdit();
+                                break;
+                            case Model.AccountType.Personal:
+                                Navigation.Personal.ProfileEdit();
+                                break;
+                        }
+                    }
+                    break;
+                case "CreateCommunity":
+                    if (this.SessionIsValid())
+                        Navigation.Community.ProfileNew();
+                    break;
+                case "PersonalBusinessCommunities":
+                    if (this.SessionIsValid()) {
+                        switch (this._token.AccountType) {
+                            case Model.AccountType.Business:
+                                Navigation.Community.ListEdit(Model.AccountType.Personal);
+                                break;
+                            case Model.AccountType.Personal:
+                                Navigation.Community.ListEdit(Model.AccountType.Business);
+                                break;
+                        }
+                    }
+                    break;
+            }
+        }
+    }))();
+</script>}
+
+@section headerFrame {
+<div style="width:100%; margin-bottom:10px;">
+    <a class="href accountName" data-command="EditProfile"></a>&nbsp;&gt;&nbsp;<span data-link="{:~personalBusinessCommunities(accountType)}"></span>
+</div>}
+
+@section leftFrame {
+<div class="side left" id="personalBusinessCommunities" style="display:none;">
+    <a class="href" data-command="PersonalBusinessCommunities" data-link="{:~personalBusinessCommunities(accountType, '!')}"></a>
+</div>}
+
+@section rightFrame{
+<div class="side right">
+    <ul class="actions">
+        <li>
+            <a class="action active" data-command="CreateCommunity">@Resource.Community.Create</a>
+        </li>
+    </ul>
+</div>}

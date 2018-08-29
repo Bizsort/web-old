@@ -1,0 +1,167 @@
+Settings = {
+    Guid: {
+        Empty: "@Guid.Empty"
+    },
+    WebSite: {
+        Origin: {
+            Host: "@Request.Url.DnsSafeHost",
+            ServerPath: "@(Request.ApplicationPath.Substring(0, Request.ApplicationPath.Length - 1))",
+            AbsoluteUri: "@(Request.Url.GetLeftPart(UriPartial.Authority) + (Request.ApplicationPath.Substring(0, Request.ApplicationPath.Length - 1)))"
+        },
+        HomePage: "@Settings.Instance.WebSite.HomePage",
+        NavToken: {
+            FragmentPrefix: "@Settings.Instance.WebSite.NavToken.FragmentPrefix",
+            QueryParamName: "@Settings.Instance.WebSite.NavToken.QueryParamName",
+        }
+    },
+    Business: {
+        Id: @Settings.Instance.Business.Id
+    },
+    Community: {
+        Locations: @Settings.Instance.Community.Locations,
+        Categories: @Settings.Instance.Community.Categories,
+        Support: @Settings.Instance.Community.Support,
+        Forum: {
+            MaxLength: @Settings.Instance.Community.Forum.MaxLength
+        }
+    },
+
+    Personal: {
+        List: {
+            MaxLength: @Settings.Instance.Personal.List.MaxLength
+        },
+
+        Message: {
+            Folder: {
+                MaxLength: @Settings.Instance.Personal.Message.Folder.MaxLength
+            }
+        }
+    },
+
+    Session: {
+        Handling: @((byte)Settings.Instance.Session.Handling),
+        HandoffCookieName: "@Settings.Instance.Session.HandoffCookieName",
+        ControlCookieName: "@Settings.Instance.Session.ControlCookieName",
+        CookieTimeout: @Settings.Instance.Session.CookieTimeout,
+        TokenHeader: "@Settings.Instance.Session.HttpHeader.Token",
+        KeyHeader: "@Settings.Instance.Session.HttpHeader.Key",
+        AutoLogin: {
+            UserCookieName: "@Settings.Instance.Session.AutoLogin.UserCookieName",
+            GuestCookieName: "@Settings.Instance.Session.AutoLogin.GuestCookieName",
+            ExpireAfter: @Settings.Instance.Session.AutoLogin.ExpireAfter
+        }
+    },
+
+    Service: {
+        Origin: ""
+    },
+
+    Image: (function () {
+        return {
+            Thumbnail: {
+                Width: 100,
+                Height: 0
+            },
+            WideThumbnail: {
+                Width: 120,
+                Height: 0
+            },
+            XtraSmall: {
+                Width: 150,
+                Height: 0
+            },
+            Small: {
+                Width: 240,
+                Height: 0
+            },
+            MediumSmall: {
+                Width: 320,
+                Height: 0
+            },
+            Medium: {
+                Width: 640,
+                Height: 0
+            },
+            JpegQuality: 80,
+            SizeThreshold: 85
+        }
+    })(),
+
+    Product: {
+        Quota: {
+            Personal: {
+                Total: @Settings.Instance.Product.Quota.Personal.Total,
+                Active: @Settings.Instance.Product.Quota.Personal.Active,
+                Pending: @Settings.Instance.Product.Quota.Personal.Pending
+            },
+
+            Business: {
+                Total: @Settings.Instance.Product.Quota.Business.Total,
+                Active: @Settings.Instance.Product.Quota.Business.Active,
+                Pending: @Settings.Instance.Product.Quota.Business.Pending
+            }
+        }
+    },
+
+    Location: {
+        Country: @Settings.Instance.Location.Country,
+        Address1Threshold: @Settings.Instance.Location.Address1Threshold,
+
+        Data: @Html.Raw(System.IO.File.ReadAllText(Server.MapPath("~/Location/Settings.json"))),
+
+        GetSettings: function(location) {
+            var locationSettings = {};
+            if (location && this.Data)
+                this.populateSettings(location, this.Data, locationSettings);
+            return locationSettings;
+        },
+
+        populateSettings: function(location, locationSettings, effectiveSettings) {
+            var locations = [];
+            while (location && location.Id > 0) {
+                locations.splice(0, 0, location.Name);
+                location = location.Parent;
+            }
+            var locationName;
+            for (var i = 0, l = locations.length; i < l; i++) {
+                locationName = locations[i];
+                locationSettings = locationSettings[locationName];
+            
+                if (locationSettings)
+                    Settings.Location.Populate.call(effectiveSettings, locationSettings);
+                else
+                    break;
+            }
+
+            return effectiveSettings;
+        },
+
+        Populate: function(settings) {
+            if(!this.Phone)
+                this.Phone = {};
+            Settings.Location.populate.call(this.Phone, settings.Phone);
+            if(!this.PostalCode)
+                this.PostalCode = {};
+            Settings.Location.populate.call(this.PostalCode, settings.PostalCode);
+        },
+
+        populate: function(settings) {
+            if (settings) {
+                if (settings.UserEntry) {
+                    if(!this.UserEntry)
+                        this.UserEntry = {};
+                    if (settings.UserEntry.Mask) {
+                        this.UserEntry.Mask = settings.UserEntry.Mask;
+                    }
+                    if (settings.UserEntry.Prompt) {
+                        this.UserEntry.Prompt = settings.UserEntry.Prompt;
+                    }
+                }
+            }
+        }
+    }
+};
+
+/*$.getJSON("/Location/Settings.json", function(locationSettings) {
+    Settings.Location.Data = locationSettings;
+});*/

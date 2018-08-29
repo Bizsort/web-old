@@ -1,0 +1,30 @@
+﻿<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+    <title>@String.Format(Resource.Global.Page_TitleFormat, Resource.Dictionary.Error)</title>
+    <link href="~/CSS/Colors.css" rel="stylesheet" />
+    <link href="~/CSS/Form.css" rel="stylesheet" />
+    <style type="text/css">
+        html { height: 100% }       
+        body { height: 100%; margin: 0; padding: 0 }       
+    </style>
+    <script src="~/JS/External/jquery-3.2.1.js" type="text/javascript"></script>
+    <script type="text/javascript">
+        $(document).ready(function () {
+            var message;
+            if (location.hash && location.hash.length > 1) {
+                message = location.hash.substring(1, location.hash.length);
+
+                if (message) //HttpUtility.UrlEncode uses '+' instead of '%20' for spaces in strings, changed to Uri.EscapeDataString
+                    $('#error').text(decodeURIComponent(message)/*.replace(/\+/g, ' ')*/).show();
+            }
+        });
+    </script>
+</head>
+<body>
+    <form id="form">
+        <span id="errorMessage" class="formError" style="font-size:larger; font-weight:bold; text-align:center; margin-top:20px;">@Resource.Global.AdScrl_Error_Session</span>
+        <span id="error" style="display:none; text-align:left; margin-top:15px;"></span>
+    </form>
+</body>
+</html>

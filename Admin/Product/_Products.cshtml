@@ -1,0 +1,187 @@
+@{
+    Page.Title = String.Format(Resource.Global.Page_TitleFormat, Resource.Global.My_Products);
+    Layout = "~/Layout/_LCRPanel.cshtml";
+}
+
+@section head {
+<script type="text/javascript">
+    Products = Product.ListView.extend({
+        ctor: function (listView) {
+            Product.ListView.prototype.ctor.call(this, listView);
+            this._admin = true;
+
+            this.actionPanel = new Controls.Action.Panel();
+
+            //this.isItemSelected = false;
+            this.IsItemSelected.bind.call(this, false);
+
+            this.communities = new Controls.Action.CommunityProduct();
+            this.confirmCommunity = this.communities.$popupForm;
+            this.confirmCommunity.TextVisible = false;
+            this.confirmCommunity_Category = this.communities.CommunityCategory;
+
+            this.productStats = new Controls.Product.Stats();
+        },
+
+        Initialize: function (options) {
+            Foundation.List.Filter.View.prototype.Initialize.call(this, $.extend(options || {}, {
+                actionPanel: {
+                    container: $('#actionPanel')
+                }
+            }));
+
+            $('.accountName').text(this.AccountName());
+
+            var $this = this;
+            //Custom IsItemSelected property, not inherited from Folder.Edit
+            this.Pager.SelectedChanged(function () {
+                //IsItemSelected is now ObservableProperty to facilitate IsItemSelectedChanged as in Owner/Message/Received
+                $this.IsItemSelected($this.Pager.HasSelected()); //$.observable($this).setProperty('IsItemSelected', $this.Pager.HasSelected());
+            });
+
+            //Done with XAML binding in SL IsEnabled="{Binding IsItemSelected}"
+            this.IsItemSelectedChanged(function () {
+                $this.setCommunitiesEnabled();
+            }),
+
+            this.List.View.ItemViewCommand = function (product) {
+                if ($this.SessionIsValid())
+                    Navigation.Product.Edit($this._token.AccountType, product.Id, Settings.Guid.Empty);
+            };
+
+            this.communities.ItemSelected = function (community, name) {
+                if (!$this.SessionIsValid()) return;
+
+                if ($this.Pager.HasSelected() && community > 0) {
+                    Admin.Service.Community.Profile.Get(community, function (cachedCommunity) {
+                        if (cachedCommunity && Admin.Service.Community.Profile.CanProduce(cachedCommunity)) {
+                            $this.confirmCommunity.Content["Community"] = name;
+                            $this.confirmCommunity.CommandArgument = community;
+                            $this.confirmCommunity_Category.Community(community);
+                            //$this.confirmCommunity_Category.Allow_PostProducts_Uncategorized = cachedCommunity.Allow_PostProducts_Uncategorized;
+                            //_confirmCommunity_Category.Text = null;
+                            $('#overwrite', $this.confirmCommunity.$container).prop('checked', false);
+                            $this.confirmCommunity.Show();
+                        }
+                    });
+                }
+                else if (community == 0)
+                    Navigation.Community.ProfileNew(Session.User.Business.Id > 0 ? Model.AccountType.Business : Model.AccountType.Personal);
+            };
+            this.confirmCommunity.Submit = function () {
+                if ($this.SessionIsValid() && $this.Pager.HasSelected()) {
+                    var community = $this.confirmCommunity.CommandArgument;
+                    if (community > 0) {
+                        Admin.Service.Community.Profile.Get(community, function (cachedCommunity) {
+                            if (cachedCommunity && Admin.Service.Community.Profile.CanProduce(cachedCommunity)) {
+                                var confirmCommunity_Category = $this.confirmCommunity_Category.Value;
+                                if (confirmCommunity_Category/* || cachedCommunity.Allow_PostProducts_Uncategorized*/) {
+                                    overwrite = $('#overwrite', $this.confirmCommunity.$container).prop('checked') ? true : false;
+                                    Admin.Service.Community.Product.Add(community, (confirmCommunity_Category ? confirmCommunity_Category.Id : 0), $this.Pager.Selected, overwrite, function (success) {
+                                        $this.clearSelected();
+                                        $this.confirmCommunity.SubmitComplete();
+                                    }, jQuery.proxy($this.confirmCommunity.Invalidate, $this.confirmCommunity));
+                                }
+                                else
+                                    $this.confirmCommunity.Invalidate(new Foundation.Exception.ArgumentException(Foundation.Exception.ArgumentException.Type.ValueRequired, "Category"));
+                            }
+                            else
+                                $this.confirmCommunity.Invalidate(new Foundation.Exception.SessionException(Foundation.Exception.SessionException.Type.Unauthorized));
+                        });
+                        return;
+                    }
+                }
+                throw new Foundation.Exception.OperationException(Foundation.Exception.OperationException.Type.Invalid);
+            };
+        },
+
+        setCommunitiesEnabled: function () {
+            if (this.communities.Enabled() != this.IsItemSelected())
+                this.communities.Enabled(this.IsItemSelected());
+        },
+
+        AccountName: function () {
+            switch (this._token.AccountType) {
+                case Model.AccountType.Business:
+                    return Session.User.Business.Name;
+                    break;
+                case Model.AccountType.Personal:
+                    return Session.User.Name;
+                    break;
+            }
+        },
+
+        //Custom IsItemSelected property, not inherited from Folder.Edit
+        IsItemSelected: ObservableProperty('IsItemSelected', function () {
+            return this.isItemSelected;
+        }, function (isItemSelected) {
+            this.isItemSelected = isItemSelected;
+            /*if (isItemSelected)
+                $('a.isItemSelected').addClass('active');
+            else
+                $('a.isItemSelected').removeClass('active');*/
+        }, { changeDelegate: true }),
+
+        AddActions: function () {
+            this.actionPanel.Add(this.communities, { separated: true });
+        },
+
+        Load: function () {
+            var $this = this;
+            Session.EvaluateQuota(this._token.AccountType, function (productStats) {
+                $this.productStats.Populate(productStats, $('#rightFrame'));
+            });
+
+            Foundation.List.View.prototype.Load.call(this);
+        },
+
+        formatActions: function (isEmpty) {
+            if (isEmpty)
+                this.communities.State(Foundation.Controls.Action.State.Inactive);
+            else { 
+                if (this.communities.State() != Foundation.Controls.Action.State.Active)
+                    this.communities.State(Foundation.Controls.Action.State.Active);
+                this.setCommunitiesEnabled();
+            }
+        },
+
+        onCommand: function (command) {
+            switch (command) {
+                case "EditProfile":
+                    if (this.SessionIsValid()) {
+                        switch (this._token.AccountType) {
+                            case Model.AccountType.Business:
+                                Navigation.Business.ProfileEdit();
+                                break;
+                            case Model.AccountType.Personal:
+                                Navigation.Personal.ProfileEdit();
+                                break;
+                        }
+                    }
+                    break;
+                case "NewProduct":
+                    if (this.SessionIsValid() && this.productStats.CanList) {
+                        switch (this._token.AccountType) {
+                            case Model.AccountType.Business:
+                                Navigation.Product.New(Model.Session.PostType.Business, Session.User.CategoryId, this._token);
+                                break;
+                            case Model.AccountType.Personal:
+                                Navigation.Product.New(Model.Session.PostType.Personal, Session.User.CategoryId, this._token);
+                                break;
+                        }
+                    }
+                    break;
+            }
+        }
+    });
+</script>
+@RenderSection("head", required: false)}
+
+@section headerFrame{
+@RenderSection("headerFrame", required: true)}
+
+@section leftFrame {
+@RenderSection("leftFrame", required: true)}
+
+@section rightFrame{
+@RenderSection("rightFrame", required: true)}

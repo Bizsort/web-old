@@ -1,0 +1,71 @@
+﻿@{
+    Page.Title = String.Format(Resource.Global.Page_TitleFormat, Resource.Business.Directory);
+    Page.MicrodataItemType = "http://schema.org/ItemList";
+    Layout = "~/Layout/_LCRPanel.cshtml";
+}
+
+@section head {
+<script src="~/JS/Common/Geocoder.js" type="text/javascript"></script>
+<script type="text/javascript">
+    Page = new (Foundation.List.View.extend({
+        ctor: function () {
+            this.ApplicationPage = "/Business/Connections";
+            this.searchLocation = new Controls.Location.Current();
+            this.searchBox = new Foundation.Controls.Search.TextBox();
+            var listView = new Controls.Business.ListView();
+            Foundation.List.View.prototype.ctor.call(this, listView);
+            this.List.Entity = "@Resource.Dictionary.connection_s";
+
+            $.views.helpers({
+                Navigation: Navigation
+            });
+        },
+
+        ValidateRequest: function (token) {
+            if (token.AccountType == Model.AccountType.Business && token.AccountId > 0 && token.Action == Model.Session.Action.ConnectionsView) {
+                return true;
+            }
+            else
+                return false;
+        },
+
+        Initialize: function (options) {
+            ReflectMenu(Navigation.Menu.MainItem.ItemType.Scroll, Navigation.Menu.SubItem.ItemType.Scroll_Businesses, true);
+            Foundation.List.View.prototype.Initialize.call(this, options);
+        },
+
+        Load: function () {
+            var $this = this;
+            User.Service.Business.Profile.Get(this._token.AccountId, function (account) {
+                Foundation.Page.prototype.ReflectTitle.call($this, [String.format("@Resource.Global.X_Connections", account.Name)]);
+                $('.accountName').text(account.Name);
+                Foundation.List.View.prototype.Load.call($this);
+                $('.asyncData').show();
+            }, jQuery.proxy(this.handleEntityFetchError, this));
+        },
+
+        fetchList: function (queryInput, callback, faultCallback) {
+            User.Service.Business.Profile.GetConnections(this._token.AccountId, callback, faultCallback);
+        },
+
+        fetchPage: function (page, callback, faultCallback) {
+            var $this = this;
+            User.Service.Business.Profile.ToPreview(page, function (connections) {
+                callback($this.preparePage(page, connections));
+            }, faultCallback);
+        },
+
+        onCommand: function (command) {
+            switch (command) {
+                case "ViewAccount":
+                    Navigation.Business.ProfileView(this._token.AccountId);
+                    break;
+            }
+        }
+    }))();
+</script>}
+
+@section headerFrame {
+<div class="asyncData" style="display:none; margin-bottom:10px;">
+    <a class="href accountName" data-command="ViewAccount"></a>&nbsp;&gt;&nbsp;@Resource.Dictionary.Connections
+</div>}

@@ -1,0 +1,84 @@
+﻿@{
+    Page.SessionRequiredNew = true;
+    Page.Title = String.Format(Resource.Global.Page_TitleFormat, Resource.Global.Unsubscribe);
+    Layout = "~/Layout/_CenterPanel.cshtml";
+
+    string email = null;
+    string error = null;
+    bool success = false;
+    try
+    {
+        if (Request.QueryString.Count != 1 ||
+            String.IsNullOrWhiteSpace(Request.QueryString[0]))
+        {
+            error = Resource.Global.Unsubscribe_Error;
+        }
+        else
+        {
+            email = HttpUtility.HtmlDecode(Request.QueryString[0].Trim().ToLower());
+            success = Service.Engine2.Client.UpdateEmailSubscription(email, Model.EmailSubscriptionType.None, Model.EmailSubscriptionType.All, Request.UserHostAddress);
+        }        
+    }
+    catch (Foundation.Exception.DataException ex)
+    {
+        error = (ex.Type == Foundation.Exception.DataExceptionType.RecordNotFound ? Resource.Global.Unsubscribe_Email_NotFound : ex.Message);
+    }
+    catch (Foundation.Exception.OperationException ex)
+    {
+        error = (ex.Type == Foundation.Exception.OperationExceptionType.UnexpectedState ? Resource.Global.Unsubscribe_Error : ex.Message);
+    }
+    catch (Exception ex)
+    {
+        error = ex.Message;
+    }
+}
+
+@section token {
+<script type="text/javascript">
+    Session.Flags.SuppressAutoLogin = true;
+
+    Navigation.Main.GetToken = function (pageUri) {
+        return new Session.Navigation.Token(pageUri, Model.Session.Action.UpdateEmailSubscription);
+    };
+</script>}
+
+@section head {
+<script type="text/javascript">
+    Page = new (Foundation.Page.extend({
+        ValidateRequest: function (token) {
+            if (Session.User.Id == 0 && token.Action == Model.Session.Action.UpdateEmailSubscription) {
+                return true;
+            }
+            else
+                return false;
+        },
+
+        Load: function () {
+            Foundation.Page.prototype.Load.call(this); //Set the loaded flag
+            @if (error == null)
+            {
+                if (success)
+                {
+                    <text>
+                        $("#successMessage").show();
+                    </text>
+                }
+                else
+                {
+                    <text>
+                        $("#successMessage").text("@Resource.Global.Unsubscribe_Email_NotFound").show();
+                    </text>
+                }
+            }
+            else
+            {
+                <text>
+                    $("#errorMessage").show();
+                </text>
+            }
+        }
+    }))();
+</script>}
+<span id="errorMessage" class="formError" style="display:none;">@String.Format(Resource.Global.Editor_Error_processing_request_X, error)</span>
+<span id="successMessage" class="formSuccess" style="display:none;">@String.Format(Resource.Global.Unsubscribe_Success, email)</span>
+

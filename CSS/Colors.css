@@ -1,0 +1,526 @@
+﻿div.form,
+div.side,
+div.item-dropDown,
+table.view,
+.page-footer > table,
+div.form.header,
+table.form tr.header td,
+table.form tr#footer td,
+table.list th.header,
+span.pager a,
+/*ul.treeView li > span.expander,*/
+table.messages,
+table.message td.header,
+fieldset legend,
+table.form input[type=text],
+table.form textarea,
+fieldset.form legend a
+{
+	color: #29395D;
+}
+
+input[type=text],
+input[type=password]
+{
+    border-color: #707070;
+}
+
+input[type=text]:focus,
+input[type=password]:focus
+{
+    border-color: #212121;
+}
+
+div.popup,
+div.dropDownPopup,
+div.item-dropDown
+{
+    background-color: #F5F5F5;
+}
+
+div.popup,
+div.dropDownPopup,
+div.item-dropDown,
+table#searchBox
+{
+    border-color: #000; 
+}
+
+table.dropDownAnchor.active
+{
+    border-color: #00008B !important;
+}
+
+table.dropDownAnchor.active td:first-child
+{
+    background-color: #F5DEB3;
+}
+
+/*table.dropDownAnchor.active td:last-child not supported in IE8*/
+table.dropDownAnchor.active td + td
+{
+    background-color: #F0FFFF;
+}
+
+.page-logo,
+.page-header,
+.page-header a,
+.page-header a:visited,
+ul#menuMainList > li > a
+{
+	color: #CECEDF; 
+}
+
+/*.page-logo
+{
+    color: transparent;
+}*/
+
+a.href,
+a.group,
+div.side > a.folder,
+table.filterAvail a,
+table.preview a,
+ul.treeView li > a,
+ul.listBox > li > a,
+span.success
+{
+	color: blue;
+}
+
+table.form label.error,
+table.form label.errorLabel
+{
+	color: red;
+}
+
+span.formError,
+td.formError
+{
+    color: #DC000C;
+}
+
+span.formSuccess
+{
+    color: mediumblue;
+}
+
+table.form input.error,
+table.form textarea.error,
+table.form select.error,
+table.form div.error,
+table.form table.error,
+table.form td.error,
+table.dropDownAnchor.error
+{
+    border-color: red !important;
+}
+
+div.side > span.header,
+table.message td.header,
+table.list th.header
+{
+	background-color: #CECEDF;    
+}
+
+span.pager a,
+ul.treeView li > span.expander,
+div.item-dropDown a.drillDown,
+div.item-dropDown a.drillUp,
+a.button.flat,
+a.image-button
+{
+    border-color: transparent;
+}
+
+.buttonPanel > button,
+.buttonPanel > a.button,
+.form-button
+{
+	color: #606060;
+}
+
+.buttonPanel > button,
+.buttonPanel > a.button,
+a.button.flat.active:hover,
+a.image-button.active:hover,
+.form-button,
+span.pager a.active:hover,
+ul.treeView li > span.expander:hover,
+div.item-dropDown a.drillDown:hover,
+div.item-dropDown a.drillUp:hover,
+table.imageSlider a.active:hover,
+table.imageFlipView a.active:hover
+{
+    border-color: #b7b7b7;
+}
+
+span.rte-button-content.separated
+{
+	border-left-color: #b7b7b7;
+}
+
+.buttonPanel > button,
+.buttonPanel > a.button,
+a.button.flat.active:hover,
+a.image-button.active:hover,
+.form-button,
+table.imageSlider a.active:hover,
+table.imageFlipView a.active:hover
+{
+	background-color: #fff;
+	background: -webkit-gradient(linear, left top, left bottom, from(#fff), to(#ededed));
+	background: -moz-linear-gradient(top,  #fff,  #ededed);
+	/*overwrites background-image filter: progid:DXImageTransform.Microsoft.gradient(startColorstr='#ffffff', endColorstr='#ededed');*/
+}
+
+.buttonPanel > button,
+.buttonPanel > a.button,
+a.button.flat.active:hover,
+a.image-button.active:hover,
+.form-button
+/*overwrites background-image table.imageSlider a.active:hover,
+table.imageFlipView a.active:hover*/
+{
+	filter: progid:DXImageTransform.Microsoft.gradient(startColorstr='#ffffff', endColorstr='#ededed');
+}
+
+.buttonPanel > button.active:hover,
+.buttonPanel > a.button.active:hover,
+span.pager a.active:hover,
+span.pager a.page.selected,
+ul.treeView li > span.expander:hover,
+div.item-dropDown a.drillDown:hover,
+div.item-dropDown a.drillUp:hover,
+.form-button.active:hover
+{
+	background-color: #ededed;
+	background: -webkit-gradient(linear, left top, left bottom, from(#fff), to(#dcdcdc));
+	background: -moz-linear-gradient(top,  #fff,  #dcdcdc);
+    /*overwrites background-image filter: progid:DXImageTransform.Microsoft.gradient(startColorstr='#ffffff', endColorstr='#dcdcdc');*/
+}
+
+.buttonPanel > button.active:hover,
+.buttonPanel > a.button.active:hover,
+span.pager a.page.active:hover,
+span.pager a.page.selected,
+/*overwrites background-image ul.treeView li > span.expander:hover,*/
+.form-button.active:hover
+{
+	filter: progid:DXImageTransform.Microsoft.gradient(startColorstr='#ffffff', endColorstr='#dcdcdc');
+}
+
+/*a.button:active {
+	color: #999;
+	background: -webkit-gradient(linear, left top, left bottom, from(#ededed), to(#fff));
+	background: -moz-linear-gradient(top,  #ededed,  #fff);
+	filter:  progid:DXImageTransform.Microsoft.gradient(startColorstr='#ededed', endColorstr='#ffffff');
+}*/
+
+/*:disabled selector not supported in IE, so it will ignore this whole style, lockily however it will gray out disabled element automatically anyway*/
+span.pager a.page[disabled],
+span.pager a.page:disabled,
+.buttonPanel > button[disabled],
+.buttonPanel > button:disabled,
+.buttonPanel > a[disabled],
+.buttonPanel > a:disabled
+{
+    color: #999999 !important;
+}
+
+div.form,
+div.side,
+div.form.header,
+table.form tr.header td,
+table.form tr#footer td,
+table.messages
+{
+	background-color: #E8E8F0;
+}
+
+.modalBackground {
+    background-color:gray;
+    filter:alpha(opacity=70);
+    opacity:0.7;
+}
+
+.page-footer > table,
+table.preview tr.separated > td
+{ 
+	border-top-color: #ADB5CB; 
+}
+
+div.popup div.header,
+div.item-dropDown span.header
+{
+    background-color: #CCC;
+    border-color: #AAA; 
+}
+
+div.popup div.footer
+{
+    border-top-color: #AAA;
+}
+
+table.view > tbody > tr.header > th
+{
+    border-bottom-color: #ADB5CB; 
+}
+
+div.tabPanel > ul > li
+{
+	background-color: #E9E9F1;
+}
+
+table.preview tr.highlighted,
+table.preview tbody > tr:hover,
+table.thumbnail:hover td
+{
+	background-color: #F7F7FA;
+}
+
+div.tabPanel > ul > li.texture.selected
+{
+    background: url('../images/background.jpg');
+}
+
+div.tabPanel > ul > li.white.selected
+{
+    background-color: #ffffff !important;
+}
+
+.tabControl.top > div.tabPanel > ul > li.white.selected
+{
+    border-bottom-color: #ffffff !important;
+}
+
+.tabControl.bottom > div.tabPanel > ul > li.white.selected
+{
+    border-top-color: #ffffff !important;
+}
+
+div.tabPanel > ul > li.transparent.selected
+{
+    background-color: transparent !important;
+}
+
+.tabControl.top > div.tabPanel > ul > li.transparent.selected
+{
+    border-bottom-color: transparent !important;
+}
+
+.tabControl.bottom > div.tabPanel > ul > li.transparent.selected
+{
+    border-top-color: transparent !important;
+}
+
+ul.treeView li > a,
+ul.listBox > li > a
+{
+    border-color: transparent;
+}
+
+ul.treeView li > a:hover,
+ul.treeView li.selected > a,
+ul.listBox > li > a:hover,
+ul.listBox > li.selected > a
+{
+    border-color: #6DBDD1;
+    background-color: #BADDE9;
+}
+
+table.attributes,
+table.attributes > tbody > tr > td.label,
+table.attributes > tbody > tr > td.value,
+table.attributes > tbody > tr > td.values
+{
+    border-color: #E9E9E9;
+}
+
+div#menuMainPopup,
+div.item-dropDown,
+div.dropDownPopup
+{
+    box-shadow:  2px 2px 1px rgba(0,0,0,0.75);
+    -webkit-box-shadow:  2px 2px 1px rgba(0,0,0,0.75);
+}
+
+.page-logo,
+.page-header,
+div#menuMain 
+{
+	background-color: #29395D;
+}
+
+div#menu/*Sticking out 1 px bottom line*/
+{
+    background-color: #636B8E;
+}
+
+div#menuSub,
+ul#menuMainList > li.selected > a,
+ul#menuMainList > li.selected > a:hover,
+ul#menuSubList > li.selected > a,
+ul#menuSubList > li.selected > a:hover
+{
+    border-color: #CECEDF !important;
+    background-color: #636B8E !important;
+    color: #fff !important;
+}
+
+div#menuMainPopup
+{
+    background-color: #8C94B2;
+    color: #29395D;
+}
+
+div#menuMainPopup li > a:hover
+{
+    background-color: #a3a9c1;
+	/*background-color: rgba(255,255,255,0.2);*/
+}
+
+div#menuMainPopup
+{
+    background-color: #8C94B2;
+    color: #29395D;
+}
+
+ul#menuMainList > li > a
+{
+    background-color: #3F4D6E;
+    /*background-color: rgba(255,255,255,0.1);*/
+    border-color: #6F7A92;
+    /*border-color: rgba(255,255,255,0.25);*/
+    border-right-color: #5C6884;
+    /*border-right-color: rgba(255,255,255,0.15);*/
+}
+
+ul#menuSubList > li > a
+{
+    background-color: #737A9A;
+	/*background-color: rgba(255,255,255,0.3);*/
+	border-color: #969BB3;
+	/*border-color: rgba(255,255,255,0.45);*/
+	border-right-color: #888EA9;
+	/*border-right-color: rgba(255,255,255,0.35);*/
+}
+
+ul#menuMainList > li > a:hover,
+ul#menuMainList > li.highlighted > a
+{
+    background-color: #6A758E;
+	/*background-color: rgba(255,255,255,0.3);*/
+	border-color: #ADB3C1;
+	/*border-color: rgba(255,255,255,0.45);*/
+	border-right-color: #9EA5B5;
+	/*border-right-color: rgba(255,255,255,0.35);*/
+}
+
+ul#menuSubList > li > a:hover
+{
+    background-color: #9298B0;
+	/*background-color: rgba(255,255,255,0.3);*/
+	border-color: #C3C6D4;
+	/*border-color: rgba(255,255,255,0.45);*/
+	border-right-color: #B8BCCC;
+	/*border-right-color: rgba(255,255,255,0.35);*/
+}
+
+fieldset.form,
+div.form,
+div.side,
+div.side > span.header,
+div.form.header,
+table.form,
+table.form tr.header td,
+table.form tr#footer td,
+table.message td.header
+{
+	border-color: #73849E;
+}
+
+div.side > a.separated,
+div.side > div.separated,
+div.side ul > li.separated,
+div.item-dropDown ul > li.separated,
+div.item-dropDown > span.separated,
+div.item-dropDown > a.separated
+{
+    border-top-color: #73849E; 
+}
+
+table.thumbnail:hover,
+ul.img-edit > li:hover,
+fieldset,
+div.tabPanel > ul > li,
+.tabControl > div.content
+{
+	 border-color: #ADB5CB;
+}
+
+.rte-toolbar
+{
+    border-bottom-color: #ADB5CB;
+}
+
+input[readonly],
+table.form td.value div.field,
+table.form td.value span.field
+{
+	border-color: threedshadow;
+}
+
+table.list th.header
+{
+	border-top-color: #CECEDF;
+	border-left-color: #CECEDF;
+	border-bottom-color: #636B8E;
+	border-right-color: #636B8E;
+}
+
+.rte-button
+{
+    border-color: #d3d3d3;
+    background-color: #e6e6e6;
+}
+
+.rte-button.active:hover
+{
+    border-color: #999999;
+    background-color: #dadada;
+}
+
+.rte-button.toggle.pressed
+{
+    border-color: #aaaaaa;
+    background-color: #ffffff;
+}
+
+.rte-button,
+.rte-button .rte-button-text,
+div.dropDownPopup > .rte-font-opt
+{
+    color: #555555;
+}
+
+.rte-button.active:hover,
+.rte-button.active:hover .rte-button-text,
+.rte-button.toggle.pressed,
+.rte-button.toggle.pressed .rte-button-text
+{
+    color: #212121;
+}
+
+.rte-wysiwyg-container,
+.rte-wysiwyg,
+.rte-markup,
+#searchBox
+{
+    background-color: #fff;
+}
+
+#searchBox a
+{
+    background-color: transparent;
+}

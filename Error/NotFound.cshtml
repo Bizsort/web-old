@@ -1,0 +1,26 @@
+@{
+    Page.Title = String.Format(Resource.Global.Page_TitleFormat, Resource.Dictionary.Error);
+    Layout = "~/Layout/_CenterPanel.cshtml";
+}
+
+@section head {
+<script type="text/javascript">
+
+    Page = new (Foundation.Page.extend({
+        ctor: function () {
+            this.ApplicationPage = "/Error/NotFound";
+            Foundation.Page.prototype.ctor.call(this);
+        },
+
+        ValidateRequest: function (token) {
+            if (token.Action == Model.Session.Action.Error) {
+                return true;
+            }
+            else
+                return false;
+        }
+    }))();
+</script>}
+
+@section headerFrame {
+<span id="errorMessage" class="formError" style="text-align:center;">@Resource.Global.AdScrl_Error_NotFound</span>}

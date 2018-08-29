@@ -1,0 +1,195 @@
+﻿@{
+    Page.Title = String.Format(Resource.Global.Page_TitleFormat, Resource.Product.Ads);
+    Page.MicrodataItemType = "http://schema.org/Person";
+    Layout = "~/Account/_View.cshtml";
+}
+
+@section head {
+<meta name="robots" content="noindex" />
+<script type="text/javascript">
+    Page = new (Account.View.extend({
+        ctor: function () {
+            this.ApplicationPage = "/Personal/Profile";
+            Account.View.prototype.ctor.call(this);
+            this.communities = new Controls.Community.Select();
+            this.communities.Text("@Resource.Community.Invite_to");
+            this.confirmCommunity = new Foundation.Controls.Confirm.Form();
+            this.confirmCommunity.MessageFormat = "@Resource.Community.Invitation_Confirm";
+            this.confirmCommunity.OptionTemplate = "<table><tr><td><label for=\"memberType\">@Resource.Dictionary.Member_type</label>&nbsp;<select id=\"memberType\" name=\"memberType\"></select></td></tr>" +
+                                                    "<tr><td style=\"padding-top:10px;\"><center><textarea id=\"inviteMessage\" placeholder=\"@Resource.Dictionary.Message\" rows=\"8\" cols=\"35\"></textarea></center></td></tr></table>";
+            this.confirmCommunity_Invite = new Controls.Community.Member.SelectType(this.confirmCommunity, Model.Community.MemberType.Moderator);
+        },
+
+        Initialize: function (options) {
+            if (!this.IsPopup)
+                ReflectMenu(Navigation.Menu.MainItem.ItemType.Scroll, Navigation.Menu.SubItem.ItemType.Scroll_Products, true);
+
+            var $this = this;
+            //Will call EvaluateActions
+            Account.View.prototype.Initialize.call(this, options);
+
+            this.confirmCommunity.OnApplyTemplate = function () {
+                $this.confirmCommunity_Invite.Container = $('#memberType', $this.confirmCommunity.$container);
+                $this.confirmCommunity_Invite.Initialize($this.confirmCommunity_Invite.Container);
+                $this.confirmCommunity_Invite = $this.confirmCommunity.Content;
+            };
+
+            this.communities.ItemSelected = function (community, itemType) {
+                var moderator = Session.User.Id;
+                var invitee = $this._token.AccountId;
+                if (moderator > 0 && invitee > 0 && moderator != invitee && community.Id > 0) {
+                    $this.confirmCommunity.Content["Community"] = community.Name;
+                    $this.confirmCommunity.CommandArgument = community.Id;
+                    //$this.confirmCommunity.Show(); //Moderators of a Business community must share the same business
+                    var business = $('#business').attr('data-commandParam');
+                    var businessId = business ? parseInt(business) : 0;
+                    Admin.Service.Community.Profile.Get(community.Id, function (cachedCommunity) {
+                        $this.confirmCommunity.Content.Post_Products(cachedCommunity.Post_Products);
+                        if (cachedCommunity.BusinessId == 0 || cachedCommunity.BusinessId == businessId)
+                            $this.confirmCommunity.Content.TypeLimit(Model.Community.MemberType.Moderator);
+                        else
+                            $this.confirmCommunity.Content.TypeLimit(Model.Community.MemberType.Content_Producer);
+                        $this.confirmCommunity.Show();
+                    });
+                }
+                else if (moderator > 0 && community.Id == 0)
+                    Navigation.Community.ProfileNew();
+            };
+            this.confirmCommunity.Submit = function () {
+                var moderator = Session.User.Id;
+                var invitee = $this._token.AccountId;
+                if (moderator > 0 && invitee > 0 && moderator != invitee) {
+                    var community = $this.confirmCommunity.CommandArgument;
+                    var confirmMembership_Type = $this.confirmCommunity_Invite.Type;
+                    if (community > 0 && confirmMembership_Type > 0 && confirmMembership_Type != Model.Community.MemberType.Owner) {
+                        var invite = {
+                            Community: community,
+                            Member: invitee,
+                            Type: confirmMembership_Type
+                        };
+
+                        var inviteMessage = $('#inviteMessage', $this.confirmCommunity.$container).val();
+                        if (!String.isNullOrWhiteSpace(inviteMessage))
+                            invite.Text = inviteMessage;
+
+                        Admin.Service.Community.Membership.Invite(invite, function (success) {
+                            $this.confirmCommunity.SubmitComplete();
+                        }, jQuery.proxy($this.confirmCommunity.Invalidate, $this.confirmCommunity));
+                        return;
+                    }
+                }
+                throw new Foundation.Exception.OperationException(Foundation.Exception.OperationException.Type.Invalid);
+            };
+            this.confirmCommunity.Error = function (error, data) {
+                if (error == Foundation.ErrorMessageType.Data_DuplicateRecord)
+                    return String.format("@Resource.Global.Editor_Error_processing_request_X", String.format("@Resource.Community.Invitation_Exists", $this.confirmCommunity.Content["Invitee"], $this.confirmCommunity.Content["Community"]));
+                else if (error == Foundation.ErrorMessageType.Operation_InvalidInteraction)
+                    return "@Resource.Community.Business_Mismatch_Moderator";
+            };
+        },
+
+        AddActions: function () {
+            this.actionPanel.Add(this.messageAction);
+            this.actionPanel.Add(this.communities);
+        },
+
+        AddTabs: function (productsTab) {
+            this.profileTabs.Initialize($('#bodyFrame'));
+            this.profileTabs.$container.addClass("subtle");
+            productsTab.Header = "<span>@Resource.Dictionary.Ads</span><span style=\"display: none;\">&nbsp;[<a class=\"href\" data-command=\"ViewProducts\">@Resource.Action.View</a>]</span>";
+            productsTab.Selected = function (selected) {
+                Foundation.Controls.Layout.TabItem.prototype.Selected.call(this, selected);
+                if (selected)
+                    $('span', this.Header).slice(1).show();
+                else
+                    $('span', this.Header).slice(1).hide();
+            }
+            this.profileTabs.AddTab(productsTab);
+        },
+
+        ValidateRequest: function (token) {
+            if (token.AccountType == Model.AccountType.Personal && token.AccountId > 0 && token.Action == Model.Session.Action.ProfileView) {
+                return true;
+            }
+            else
+                return false;
+        },
+
+        Load: function () {
+            var $this = this;
+            User.Service.Personal.Profile.View(this._token.AccountId, function (profile) {
+                $this.products.Populate(User.Service.Personal.Product.GetThumbnails($this._token.AccountId));
+                Account.View.prototype.populate.call($this, profile);
+
+                if (profile.Image.HasImage) {
+                    var img = $('<img itemprop="image" src="' + profile.Image.ImageRef + '"/>');
+                    $('#image').append(img).show();
+                }
+
+                if (profile.Name) {
+                    Service.Personal.Profile.Get($this._token.AccountId, function (account) {
+                        $this.confirmCommunity.Content["Invitee"] = account.Name;
+                    });
+                }
+                else
+                    $this.confirmCommunity.Content["Invitee"] = profile.Name;
+
+                var hasBusiness = false;
+                if (profile.Business) {
+                    hasBusiness = true;
+                    var a = $('<a id="business" class="href" data-command="ViewBusiness" data-commandParam="' + profile.Business.Id + '">' + profile.Business.Name + '</a>');
+                    $('#businessName').append(a).css('border-bottom-color', 'transparent').parent('tr').show();
+
+                    //if (profile.Business.HasImage) { @*User.Data.Personal.Profile.View: Without imageId we can only fetch icon as a default image (Order == 0) otherwise will get DataExceptionType.RecordNotFound*@
+                        var img = $('<img src="' + profile.Business.ImageRef + '"/>');
+                        $('#businessImage').append(img).parent('tr').show();
+                    //}
+                }
+
+                if (profile.Location) {
+                    $this.address.Populate(profile.Location, $this.address.Container);
+                    if (profile.Name)
+                        $this.address.PlaceName = profile.Name;
+                }
+
+                if (!String.isNullOrWhiteSpace(profile.Phone))
+                    $('#phone').text(profile.Phone).parent('tr').show();
+                else if (hasBusiness && !String.isNullOrWhiteSpace(profile.Business.Phone))
+                    $('#phone').text(profile.Business.Phone).parent('tr').show();
+                else
+                    $('#phone').parent('tr').hide();
+            }, jQuery.proxy(this.handleEntityFetchError, this));
+        },
+
+        onCommand: function (command, param) {
+            switch (command) {
+                case "ViewBusiness":
+                    if (param) {
+                        var businessId = parseInt(param);
+                        if (!isNaN(businessId))
+                            Navigation.Business.ProfileView(businessId);
+                    }
+                    break;
+                default:
+                    Account.View.prototype.onCommand.call(this, command);
+                    break;
+            }
+        }
+    }))();
+</script>}
+
+@section centerFrame {
+<table class="attributes" id="profileAttributes">
+    <tr style="display:none;">
+        <td rowspan="2" class="label" style="vertical-align:top;">@Resource.Dictionary.Business</td>
+        <td class="value" id="businessName"></td>
+    </tr>
+    <tr style="display:none;">
+        <td class="value" id="businessImage" style="border-top-color: transparent;"></td>
+    </tr>
+    <tr id="address" style="display:none;" itemprop="address" itemscope itemtype="http://schema.org/PostalAddress"></tr>
+    <tr style="display:none;">
+        <td class="label">@Resource.Dictionary.Phone</td>
+        <td class="value" id="phone"></td>
+    </tr>
+</table>}

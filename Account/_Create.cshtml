@@ -1,0 +1,308 @@
+@{
+    Page.SessionRequired = true;
+    Page.Title = String.Format(Resource.Global.Page_TitleFormat, Resource.Global.Account_Create);
+    Layout = "~/Layout/_CenterPanel.cshtml";
+}
+
+@section token {
+@RenderSection("token", required: false)}
+
+@section head {
+@*Not tested<script src="http://maps.googleapis.com/maps/api/js?key=AIzaSyD-24GCNOxOz5iq1_SmYK5sgHPpAgnwZos" type="text/javascript"></script>*@
+<script src="http://maps.googleapis.com/maps/api/js?libraries=places" type="text/javascript"></script>
+<script src="~/JS/Common/Geocoder.js" type="text/javascript"></script>
+<script type="text/javascript">
+    Geocoder = {};
+
+    Account = {
+        Create: Foundation.Inserter.extend({
+            ctor: function () {
+                Foundation.Inserter.prototype.ctor.call(this);
+                Foundation.Validator.addMethod("validateEmail", jQuery.proxy(Model.LocationSettings.ValidateEmail, this));
+                Foundation.Validator.addMethod("validatePassword", Model.Account.ValidatePassword);
+
+                //Ref: Admin.Product._Edit
+                this.location = new Foundation.Controls.Location.TextBox();
+                this.location.Requirement = Model.Address.Requirement.City;
+                this._focusCtrl = "#email";
+            },
+
+            //Ref: Admin.Model.Business.Profile.ValidateEmail
+            //http://jquery.bassistance.de/validate/demo/milk/
+            ValidatorOptions: {
+                rules: {
+                    email: "validateEmail",
+                    /*email: {
+                    required: true,
+                    email: true
+                    }*/
+                    confirmEmail: {
+                        required: true,
+                        equalTo: "#email"
+                    },
+                    password: "validatePassword",
+                    confirmPassword: {
+                        required: true,
+                        equalTo: "#password"
+                    },
+                    name: {
+                        required: true,
+                        maxlength: 100
+                    },
+                    securityCode: "required"
+                    
+                },
+
+                messages: {
+                    email: "@String.Format(Resource.Global.Editor_Error_Enter_X_Valid, Resource.Dictionary.Email). @Resource.Global.Account_Email_Requirement",
+                    confirmEmail: {
+                        required: "@String.Format(Resource.Global.Editor_Error_Enter_X, Resource.Dictionary.Email)",
+                        equalTo: "@Html.Raw(Resource.Global.Account_Email_Error_Match)"
+                    },
+                    password: "@Resource.Global.Account_Password_Error_Weak. @Resource.Global.Account_Password_Requirement",
+                    confirmPassword: {
+                        required: "@String.Format(Resource.Global.Editor_Error_Enter_X, Resource.Dictionary.Password)",
+                        equalTo: "@Resource.Global.Account_Password_Error_Match"
+                    },
+                    name: "@String.Format(Resource.Global.Editor_Error_Enter_X, Resource.Dictionary.Name)",
+                    securityCode: "@String.Format(Resource.Global.Editor_Error_Enter_X, Resource.Dictionary.Security_code)"
+                }
+            },
+
+            Initialize: function (options) {
+                Foundation.Inserter.prototype.Initialize.call(this, options);
+
+                $("#email").attr('title', "@Resource.Global.Account_Email_Hint")/*.tipsy()*/.focus();
+                $("#password").attr('title', "@Resource.Global.Account_Password_Hint")/*.tipsy()*/;
+
+                //setDisabled($('#acceptTerms', this.$container), true);
+
+                var $this = this;
+                this.passwordUnmask = $('#passwordUnmask', this.$container);
+                this.passwordUnmask.change(function () {
+                    var passwordE = $('#password', this.$container);
+                    var confirmPasswordE = $('#confirmPassword', this.$container);
+                    var password = passwordE.val();
+                    var confirmPassword = confirmPasswordE.val();
+                    if ($this.passwordUnmask.prop('checked')) {
+                        //passwordE.type = 'text';
+                        //confirmPasswordE.type = 'text';
+                        passwordE.replaceWith($('<input type="text" id="password" name="password" />')
+                            .val(password)
+                            .attr('title', "@Resource.Global.Account_Password_Hint")/*.tipsy()*/);
+                        confirmPasswordE.replaceWith($('<input type="text" id="confirmPassword" name="confirmPassword" />').val(confirmPassword));
+                    }
+                    else {
+                        //passwordE.type = 'password';
+                        //confirmPasswordE.type = 'password';
+                        passwordE.replaceWith($('<input type="password" id="password" name="password" />')
+                            .val(password)
+                            .attr('title', "@Resource.Global.Account_Password_Hint")/*.tipsy()*/);
+                        confirmPasswordE.replaceWith($('<input type="password" id="confirmPassword" name="confirmPassword" />').val(confirmPassword));
+                    }
+                });
+
+                this.location.Initialize($('#location'));
+            },
+
+            ReflectUser: function () {
+                if (Session.User.Id > 0) {
+                    Navigation.Personal.ProfileEdit();
+                }
+                else
+                    Foundation.Page.prototype.ReflectUser.call(this);
+            },
+
+            ValidateRequest: function (token) {
+                if (Session.User.Id == 0 && token.Action == Model.Session.Action.AccountCreate) {
+                    return true;
+                }
+                else if (Session.User.Id > 0) {
+                    return Navigation.Personal.ProfileEdit(true);
+                }
+                else
+                    return false;
+            },
+
+            $validationItems: {},
+
+            Load: function () {
+                Foundation.Inserter.prototype.Load.call(this); //Set loaded & initialize tabbable
+                var $this = this;
+                User.Service.Master.Location.GetSettings(Settings.Location.Country, function (locationSettings) {
+                    $this.$validationItems.LocationSettings = locationSettings;
+                });
+            },
+
+            Validate: function (proceed, ctx) {
+                //Ref: Admin.Product._Edit
+                $('label[for=location]', this.$container).removeClass('errorLabel');
+                this.location.$errorInfo.Clear(); //Clear location error before $validator.form() method, otherwise it will show "Warning: No message defined for location"
+
+                var $this = this;
+                ctx.MultiValidator().AddStep(function (proceed_, param) {
+                    $this.location.ValidateStep(function (locationValid, _) {
+                        if (!locationValid || !$this.location.Geolocation) {
+                            $('label[for=location]', $this.$container).addClass('errorLabel');
+                            proceed_(false, param);
+                        }
+                        else
+                            proceed_(true, param);
+                        /*Location Resolved on the server due to lack of session key
+                        if (locationValid && $this.location.Address) {
+                            if (!$this.$address || $this.resolvedLocation != $this.location.Text()) {
+                                if ($this.$resolvedLocation)
+                                    delete $this.$resolvedLocation;
+                                if ($this.$address)
+                                    delete $this.$address;
+                                var location = $this.location.Address;
+                                var city = {};
+                                if (location.Country) {
+                                    city.Country = location.Country;
+                                    if (location.State) {
+                                        city.State = location.State;
+                                        if (location.City)
+                                            city.Name = location.City;
+                                    }
+                                }
+                                var street = location.StreetName ? { Name: location.StreetName } : null;
+                                User.Service.Master.Location.Resolve(city, street, true, function (resolvedLocation) {
+                                    if (resolvedLocation && resolvedLocation.Id > 0) {
+                                        $this.$resolvedLocation = $this.location.Text();
+                                        $this.$address = { Location: resolvedLocation.Id };
+                                        if (location.PostalCode)
+                                            $this.$address.PostalCode = location.PostalCode;
+                                        if (resolvedLocation.Street) {
+                                            $this.$address.Street = resolvedLocation.Street.Id;
+                                            if (location.StreetNumber)
+                                                $this.$address.StreetNumber = location.StreetNumber;
+                                        }
+                                        if ($this.location.Geolocation != null) {
+                                            $this.$address.Lat = $this.location.Geolocation.Lat;
+                                            $this.$address.Lng = $this.location.Geolocation.Lng;
+                                        }
+                                    }
+                                    if (!$this.$address) //Highlight Location label
+                                        $('label[for=location]', $this.$container).addClass('errorLabel');
+                                    proceed(valid && !$this.$errorInfo.HasErrors && $this.$address);
+                                }, function (ex) {
+                                    //Highlight Location label
+                                    $('label[for=location]', $this.$container).addClass('errorLabel');
+                                    $this.location.$errorInfo.SetError("location", $this.GetErrorMessage(ex.ErrorMessageType, ex));
+                                    proceed(false);
+                                });
+                            }
+                            else {
+                                if (!$this.$address) //Highlight Location label
+                                    $('label[for=location]', $this.$container).addClass('errorLabel');
+                                proceed(valid && !$this.$errorInfo.HasErrors && $this.$address);
+                            }
+                        }
+                        else {
+                            //Highlight Location label
+                            $('label[for=location]', $this.$container).addClass('errorLabel');
+                            proceed(false);
+                        }*/
+                    }, param);
+                });
+
+                proceed(this.$validator.validate() && !this.$errorInfo.HasErrors);
+            },
+
+            GetErrorMessage: function (error, data) {
+                switch (error) {
+                    case Foundation.ErrorMessageType.Data_DuplicateRecord:
+                        return String.format("@Resource.Global.Account_Email_Error_Duplicate", $('#email', this.$container).val());
+                    case Foundation.ErrorMessageType.Argument_Invalid:
+                        if (data.name == "Name")
+                            return "@Resource.Personal.Name_Invalid";
+                        if (data.ParamName == "Country" && data.ParamValue)
+                            return String.format("@Resource.Global.Account_Country_Error_NotSupported", data.ParamValue);
+                        if (data.ParamName == "Password")
+                            return "@Resource.Global.Account_Password_Error_Weak" + ". @Resource.Global.Account_Password_Requirement";
+                        else
+                            return Foundation.Page.prototype.GetErrorMessage.call(this, error, data);
+                    default:
+                        return Foundation.Page.prototype.GetErrorMessage.call(this, error, data);
+                }
+            },
+
+            onCommand: function (command) {
+                switch (command) {
+                    case "GeneratePassword":
+                        var $this = this;
+                        User.Service.Master.Account.GeneratePassword(function (password) {
+                            $('#password', $this.$container).val(password);
+                            $('#confirmPassword', $this.$container).val(password);
+                        }, jQuery.proxy(this.Invalidate, this));
+                        break;
+                    default:
+                        Foundation.Inserter.prototype.onCommand.call(this, command);
+                        break;
+                }
+            }
+        })
+    };
+</script>
+@RenderSection("head", required: false)}
+
+@section headerFrame {
+<span id="errorMessage" class="formError" style="display:none; margin-bottom:5px;">@Resource.Global.Editor_Error</span>}
+
+<div class="form header"><span>@Resource.Global.Account_Create</span></div>
+<form id="form" action="">
+    <center>
+        <fieldset class="xtra">
+            <table class="form">
+                <tr>
+                    <td class="label"><label for="email">@Resource.Dictionary.Email</label></td>
+                    <td class="value" style="width:155px;"><input type="text" id="email" name="email" /></td>
+                    <td colspan="2" rowspan="2"></td>
+                </tr>
+                <tr>
+                    <td class="label"><label for="confirmEmail">@Resource.Dictionary.Confirm_email</label></td>
+                    <td class="value" style="width:155px;"><input type="text" id="confirmEmail" name="confirmEmail" /></td>
+                    <td colspan="2" rowspan="2"></td>
+                </tr>
+                <tr>
+                    <td class="label"><label for="password">@Resource.Dictionary.Password</label></td>
+                    <td class="value" style="width:155px;"><input type="password" id="password" name="password" /></td>
+                    <td rowspan="2" class="value auto" style="vertical-align:top;">
+                        <table style="float:left;">
+                            <tr>
+                                <td><input type="checkbox" id="passwordUnmask" tabindex="-1" />@Resource.Action.Unmask</td>
+                            </tr>
+                            <tr>
+                                <td>
+                                    [<a class="href" data-command="GeneratePassword" tabindex="-1">@Resource.Action.Auto_generate</a>]
+                                </td>
+                            </tr>
+                        </table>
+                    </td>
+                    <td rowspan="2"></td>
+                </tr>
+                <tr>
+                    <td class="label"><label for="confirmPassword">@Resource.Dictionary.Confirm_password</label></td>
+                    <td class="value" style="width:155px;"><input type="password" id="confirmPassword" name="confirmPassword" /></td>
+                </tr>
+                <tr>
+                    <td class="label"><label for="name">@Resource.Dictionary.Name</label></td>
+                    @*margin-left:0px; margin-right:0px; or width:100%; don't seem to work*@
+                    <td colspan="2" class="value" style="width:155px;"><input type="text" id="name" name="name" style="width:250px;"/></td>
+                    <td></td>
+                </tr>
+                <tr>
+                    <td class="label"><label for="location">@Resource.Dictionary.Location</label></td>
+                    <td colspan="3" id="location" class="value"></td>
+                </tr>
+                @RenderBody()
+            </table>
+        </fieldset>
+    </center>
+    <div class="form footer buttonPanel">
+        <button type="button" id="submit" class="active"><span class="button-content">@Resource.Action.Submit</span></button>
+        <button type="button" id="cancel" data-command="Cancel" class="active"><span class="button-content">@Resource.Action.Cancel</span></button>
+    </div>
+    <span id="error" class="formError" style="display:none; margin-top:15px;">
+    </span>
+</form>

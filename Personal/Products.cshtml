@@ -1,0 +1,71 @@
+﻿@{
+    Page.Title = String.Format(Resource.Product.Ads + Resource.Global.Page_TitleSeparator_2 + Resource.Global.Adscroll);
+    Page.MicrodataItemType = "http://schema.org/ItemList";
+    Layout = "~/Layout/_LCRPanel.cshtml";
+}
+
+@section head {
+<meta name="robots" content="noindex" />
+<script type="text/javascript">
+    Page = new (Product.ListView.extend({
+        ctor: function () {
+            this.ApplicationPage = "/Personal/Products";
+            this.searchLocation = new Controls.Location.Current();
+            this.searchBox = new Foundation.Controls.Search.TextBox();
+            var listView = new Controls.Product.ListView();
+            Product.ListView.prototype.ctor.call(this, listView);
+            this.List.Entity = "@Resource.Dictionary.ad_s";
+
+            $.views.helpers({
+                Navigation: Navigation,
+                dateFormatter: Foundation.ValueConverter.DateFormatter
+            });
+        },
+
+        ValidateRequest: function (token) {
+            if (token.AccountType == Model.AccountType.Personal && token.AccountId > 0 && token.Action == Model.Session.Action.ProductsView) {
+                return true;
+            }
+            else
+                return false;
+        },
+
+        Initialize: function (options) {
+            ReflectMenu(Navigation.Menu.MainItem.ItemType.Scroll, Navigation.Menu.SubItem.ItemType.Scroll_Products, true);
+            Foundation.List.Filter.View.prototype.Initialize.call(this, options);
+
+            var $this = this;
+            this.List.View.ItemViewCommand = function (product) {
+                Navigation.Product.View(Model.AccountType.Personal, $this._token.AccountId, product.Id);
+            };
+        },
+
+        Load: function () {
+            var $this = this;
+            User.Service.Personal.Profile.Get(this._token.AccountId, function (account) {
+                //Used by fetchPage to set Href
+                $this.Account = account;
+                Foundation.List.View.prototype.Load.call($this);
+                $('.accountName').text(account.Name);
+                $('.asyncData').show();
+            }, jQuery.proxy(this.handleEntityFetchError, this));
+        },
+
+        fetchList: function (queryInput, callback, faultCallback) {
+            User.Service.Personal.Profile.GetProducts(this._token.AccountId, callback, faultCallback);
+        },
+
+        onCommand: function (command) {
+            switch (command) {
+                case "ViewAccount":
+                    Navigation.Personal.ProfileView(this._token.AccountId);
+                    break;
+            }
+        }
+    }))();
+</script>}
+
+@section headerFrame {
+<div class="asyncData" style="display:none; margin-bottom:10px;">
+    <a class="href accountName" data-command="ViewAccount"></a>&nbsp;&gt;&nbsp;@Resource.Dictionary.Ads
+</div>}

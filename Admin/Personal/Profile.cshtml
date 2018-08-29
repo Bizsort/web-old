@@ -1,0 +1,350 @@
+﻿@{
+    Page.Title = String.Format(Resource.Global.Page_TitleFormat, Resource.Global.My_Profile);
+    Layout = "~/Admin/Account/_Editor.cshtml";
+}
+
+@section head {
+<script type="text/javascript">
+    Page = new (Account.Editor.extend({
+        ctor: function () {
+            this.ApplicationPage = "/Admin/Personal/Profile";
+            Account.Editor.prototype.ctor.call(this);
+            this._confirmDelete.MessageFormat = "@Resource.Global.Account_Confirm_Delete";
+            this.location.Requirement = Model.Address.Requirement.City;
+            this.imageHandler = new Foundation.Utils.Image(this);
+            this.imageBrowse = new Controls.Image.Browse();
+        },
+
+        ValidatorOptions: {
+            rules: {
+                name: {
+                    required: true,
+                    maxlength: 100
+                },
+                phone: "validatePhone"
+            },
+
+            messages: {
+                name: "@String.Format(Resource.Global.Editor_Error_Enter_X, Resource.Dictionary.Name)"
+            }
+        },
+
+        ValidateRequest: function (token) {
+            if (Session.User.Id > 0 && token.AccountType == Model.AccountType.Personal && token.Action == Model.Session.Action.ProfileEdit) {
+                this._mode = Foundation.EditMode.Edit;
+                return true;
+            }
+            else
+                return false;
+        },
+
+        LocationSettings: function (locationSettings) {
+            Account.Editor.prototype.LocationSettings.call(this, locationSettings);
+            if(locationSettings.PhoneAreaCode)
+                $('#phoneAreaCode').text(locationSettings.PhoneAreaCode+'-').show();
+            else
+                $('#phoneAreaCode').hide();
+        },
+
+        LocationSettings2: function (locationSettings) {
+            if (locationSettings.Phone.UserEntry && locationSettings.Phone.UserEntry.Mask)
+                $('#phone').attr("placeholder", locationSettings.Phone.UserEntry.Mask);
+            else
+                $('#phone').removeAttr("placeholder");
+        },
+
+        Initialize: function (options) {
+            ReflectMenu(Navigation.Menu.MainItem.ItemType.Personal, Navigation.Menu.SubItem.ItemType.Personal_Profile);
+            Account.Editor.prototype.Initialize.call(this, options);
+            this.imageBrowse.Initialize();
+            this._imagePreview = $('#imagePreview');
+            var $this = this;
+            this.imageBrowse._inputFile.bind("change", function (e) {
+                $this.imageHandler.FromFile(this.files, Model.ImageEntity.Person, $this.preserveFormat, function (newImage, preview, fileName) {
+                    if (newImage) {
+                        if (preview)
+                            $this._imagePreview.empty().append('<img style="width: ' + preview.Width + 'px; height: ' + preview.Height + 'px; margin: 10px;" src="' + preview.Content + '" title="' + fileName + '"/>').show();
+                        newImage.Preview = preview.Content;
+                        $this._cachedImage = newImage;
+                    }
+                });
+                //http://stackoverflow.com/questions/11866757/cant-clear-input-type-file-in-javascript-jquery
+                $this.imageBrowse._inputFile.parent('form').trigger('reset');
+            });
+        },
+
+        $validationItems: {},
+
+        SecurityProfile: function (securityProfile) {
+            $('#securityProfile').text(securityProfile).parent('td').show();
+        },
+
+        Load: function () {
+            Foundation.Inserter.prototype.Load.call(this); //Set loaded & initialize tabbable
+             if (this._mode == Foundation.EditMode.New) {
+                var product = new Admin.Model.Personal.Profile(true);
+                this.populate(product);
+            }
+            else if (this._mode == Foundation.EditMode.Edit)
+                Admin.Service.Personal.Profile.Edit(jQuery.proxy(this.populate, this));
+        },
+
+        populate: function (profile) {
+            if (profile && profile.Id == Session.User.Id) {
+                var securityProfile = Session.User.SecurityProfile.Type;
+                if (securityProfile > 0) {
+                    var $this = this;
+                    User.Service.Master.Dictionary.GetItemText(Model.DictionaryType.SecurityProfile, securityProfile, function (sp) {
+                        $this.SecurityProfile(sp);
+                    });
+                }
+
+                /*if (profile.Business) {
+                    if (profile.Business.Id == Session.User.Business.Id) {
+                        this._hasBusiness = true;
+                        $('#businessName').text(profile.Business.Name);
+                        
+                        if (!(profile.Address && profile.Address.Location) && profile.Business.Address && profile.Business.Address.Location)
+                            profile.Address = profile.Business.Address;
+                    }
+                    else
+                        throw new Foundation.Exception.OperationException(Foundation.Exception.OperationException.Type.Invalid);
+                }*/
+
+                $('#email').text(profile.Email);
+                if (profile.Name) {
+                    $('#name').val(profile.Name);
+                    this.NameQualifier(profile.NameQualifier);
+                }
+
+                if (profile.Image.HasImage) {
+                    var img = $('<img src="' + profile.Image.ImageRef + '"/>');
+                    $('#imagePreview').append(img).show();
+                }
+
+                if (String.isNullOrWhiteSpace(profile.Phone) && this._hasBusiness && !String.isNullOrWhiteSpace(profile.Business.Phone))
+                    profile.Phone = profile.Business.Phone;
+
+                if(profile.Phone)
+                    $('#phone').val(profile.Phone);
+
+                this.Entity(profile);
+            }
+            else
+                throw new Foundation.Exception.OperationException(Foundation.Exception.OperationException.Type.Invalid);
+        },
+
+        Entity: function (entity) {
+            if (entity) {
+                this.PersonalProfile = entity;
+                Account.Editor.prototype.Entity.call(this, entity);
+            }
+        },
+
+        NameQualifier: function(nameQualifier) {
+            if (profile.NameQualifier) {
+                $('#nameQualifier').val(profile.NameQualifier).show();
+            }
+            else
+                $('#nameQualifier').hide();
+        },
+
+        enableEdit: function (mode) {
+            if (this._mode == Foundation.EditMode.Edit) {
+                if (Session.User.Id == this.PersonalProfile.Id && Session.User.SecurityProfile.Type > Model.SecurityProfile.Type.Low) {
+                    this._delete.show();
+
+                    if (Session.User.Business.Id == 0)
+                        setDisabled(this._delete, false);
+                }
+            }
+            Foundation.Editor.prototype.enableEdit.call(this, mode);
+        },
+
+        Validate: function (proceed, ctx) {
+            var $this = this;
+            Account.Editor.prototype.Validate.call(this, function (valid) {
+                $this.$validator.validate('name');
+                $this.$validator.validate('phone');
+
+                proceed(!$this.$errorInfo.HasErrors);
+            }, ctx);
+        },
+
+        Save: function (submit) {
+            if ((Session.User.Id == 0 && this._tken.Action == Model.Session.Action.ProfileNew) || (Session.User.Id > 0 && this.PersonalProfile.Id == Session.User.Id && this._token.Action == Model.Session.Action.ProfileEdit))
+            {
+                this.PersonalProfile.Name = $('#name').val();
+                this.PersonalProfile.Phone = $('#phone').val();
+                this.PersonalProfile.Address = this.location.Address();
+
+                var $this = this;
+                Admin.Service.Personal.Profile.Save(this.PersonalProfile, this._cachedImage, function (profile) {
+                    if ($this._cachedImage)
+                        delete $this._cachedImage;
+                    if (profile.Value > 0) {
+                        Session.User.Name = (String.isNullOrWhiteSpace($this.PersonalProfile.Name) ? Resource.Dictionary.Anonymous : profile.NameQualifier > 0 ? $this.PersonalProfile.Name + ' ' + profile.NameQualifier : $this.PersonalProfile.Name);
+                        if (Session.User.Id == 0 || $this._token.Action != Model.Session.Action.ProfileEdit) {
+                            Session.User.Id = profile.Value;
+                            ReflectUser(false);
+
+                            $this._token.AccountId = Session.User.Id;
+                            $this._token.Action = Model.Session.Action.ProfileEdit;
+                            Navigation.Main.Reflect($this._token);
+                            $this._mode = EditMode.Edit;
+                        }
+                        else
+                            UserName(Session.User.Name);
+
+                        Session.User.Address = $.extend({}, $this.PersonalProfile.Address);
+                        $this.PersonalProfile.Updated = profile.Timestamp;
+                        $this.PersonalProfile.NameQualifier = profile.NameQualifier;
+                        $this.NameQualifier(profile.NameQualifier);
+
+                        $this.SaveComplete();
+                    }
+                    else
+                        Navigation.Main.Home();
+                }, jQuery.proxy(this.Invalidate, this));
+            }
+        },
+
+        Delete: function () {
+            var $this = this;
+            if (Session.User.Id > 0 && this._token.Action == Model.Session.Action.ProfileEdit &&
+                Session.User.Id == this.PersonalProfile.Id && Session.User.Business.Id == 0) {
+                Admin.Service.Personal.Profile.Delete(this.PersonalProfile.Updated, function (success) {
+                    if (success) {
+                        Session.User.Exit();
+                        ReflectUser(false);
+                        Navigation.Main.Home();
+                    }
+                    $this.DeleteComplete();
+                }, jQuery.proxy(this.DeleteComplete, this));
+            }
+            else
+                this.DeleteComplete();
+        },
+
+        GetErrorMessage: function (error, data) {
+            switch (error) {
+                case Foundation.ErrorMessageType.Argument_Invalid:
+                    if (data.ParamName == "Name") {
+                        return "@Resource.Personal.Name_Invalid";
+                    }
+                    else
+                        return Foundation.Page.prototype.GetErrorMessage.call(this, error, data);
+                default:
+                    return Foundation.Page.prototype.GetErrorMessage.call(this, error, data);
+            }
+        },
+
+        onCommand: function (command) {
+            switch (command) {
+                case "ChangeEmail":
+                    Navigation.Personal.EmailChange();
+                    break;
+                case "ChangePassword":
+                    Navigation.Personal.PasswordChange();
+                    break;
+                case "BusinessProfile":
+                    if (Session.User.Id > 0)
+                    {
+                        if (!Session.User.Business.Id) //!this._hasBusiness
+                            Navigation.Business.ProfileNew();
+                        else //if (Session.User.Business.Id == this.PersonalProfile.Business.Id)
+                            Navigation.Business.ProfileEdit();
+                    }
+                    break;
+                default:
+                    Foundation.Editor.prototype.onCommand.call(this, command);
+                    break;
+            }
+        }
+    }))();
+</script>}
+
+@section headerFrame {
+<table style="width:100%;">
+    <tr>
+        <td></td>
+        <td style="text-align:right;float:right;width:auto;">
+            <table>
+                <tr>
+                    <td style="display: none; padding-bottom: 10px; padding-right: 5px;">@Resource.Dictionary.Id:&nbsp;<span id="accountId"></span></td>
+                    <td style="display: none; padding-bottom: 10px;">@Resource.Dictionary.Security_profile: <span id="securityProfile"></span></td>
+                </tr>
+            </table>
+        </td>
+    </tr>
+</table>}
+
+@section leftFrame {
+<div class="side left">
+    <a class="href" data-command="BusinessProfile">@Resource.Business.Profile</a>
+</div>}
+<span id="successMessage" class="formSuccess" style="display:none; margin-bottom:5px;">@Resource.Global.Editor_Success</span>
+<span id="errorMessage" class="formError" style="display:none; margin-bottom:5px;">@Resource.Global.Editor_Error</span>
+<div class="form header"><span>@Resource.Personal.Profile</span></div>
+<form id="form" action="">
+    <div class="form">
+        <center>
+            <table class="form">
+                <tr>
+                    <td class="label">@Resource.Dictionary.Email</td>
+                    <td class="value" id="email"></td>
+                    <td class="value">
+                        [<a class="href" data-command="ChangeEmail" tabindex="-1">@Resource.Action.Change</a>]
+                    </td>
+                </tr>
+                <tr>
+                    <td></td>
+                    <td></td>
+                    <td class="value">
+                        [<a class="href" data-command="ChangePassword" tabindex="-1">@Resource.Action.Change_password</a>]
+                    </td>
+                </tr>
+            </table>
+        </center>
+    </div>
+    <fieldset id="productPlaceholder" class="xtra" style="margin-top:10px;">
+        <legend>@Resource.Dictionary.Details</legend>
+        <table class="form center">
+            <tr>
+                <td class="label"><a class="href" data-command="BusinessProfile">@Resource.Dictionary.Business</a></td>
+                <td colspan="2" class="value" id="businessName"></td>
+            </tr>
+            <tr>
+                <td class="label"><label for="name">@Resource.Dictionary.Name</label></td>
+                <td class="value"><input type="text" id="name" name="name" style="width:200px;" placeholder="@Resource.Dictionary.Anonymous" /></td>
+                <td class="value" style="display:none;"><input type="text" id="nameQualifier" style="width:50px;" readonly /></td>
+            </tr>
+            <tr>
+                <td rowspan="2" class="label" style="vertical-align:top;">@Resource.Dictionary.Image</td>
+                <td class="value" id="imagePreview" style="display:none;"></td>
+                <td></td>
+            </tr>
+            <tr>
+                <td class="value"><button id="openImage" class="form-button active" data-command="OpenImage"><span class="rte-button-content">@Resource.Action.Browse</span><span id="buttonMenu" class="rte-button-content separated" style="padding-top:2px;padding-right:2px;margin-right:-2px;margin-bottom:-2px;">▼</span></button></td>
+                <td></td>
+            </tr>
+            <tr>
+                <td class="label"><label for="location">@Resource.Dictionary.Location</label></td>
+                <td colspan="2" id="addressPlaceholder" class="value"></td>
+            </tr>
+            <tr>
+                <td class="label"><label for="phone">@Resource.Dictionary.Phone</label></td>
+                <td class="value"><span id="phoneAreaCode" style="vertical-align:middle;display:none;"></span><input type="text" id="phone" name="phone" style="width:150px;" /></td>
+                <td></td>
+            </tr>
+        </table>
+    </fieldset>
+    <div class="form footer buttonPanel">
+        <button type="button" id="submit" disabled><span class="button-content">@Resource.Action.Save</span></button>
+        <button type="button" id="delete" style="display:none" disabled><span class="button-content">@Resource.Action.Delete</span></button>
+        <button type="button" id="cancel" data-command="Cancel" class="active"><span class="button-content">@Resource.Action.Cancel</span></button>
+    </div>
+    <span id="error" class="formError" style="display:none; margin-top:15px;">
+    </span>
+</form>
+<form action="" style="left: -1000px; top: 0px; position: absolute; display: none;"><input type="file" accept="image/*" id="inputFile" /></form>

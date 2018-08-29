@@ -1,0 +1,117 @@
+﻿@{
+    Page.Title = String.Format(Resource.Global.Page_TitleFormat, Resource.Business.Directory);
+    Page.MicrodataItemType = "http://schema.org/ItemList";
+    Layout = "~/Layout/_LCRPanel.cshtml";
+}
+
+@section head {
+<script type="text/javascript">
+    Page = new (Product.ListView.extend({
+        ctor: function () {
+            this.ApplicationPage = "/Business/Products";
+            this.searchLocation = new Controls.Location.Current();
+            this.searchBox = new Foundation.Controls.Search.TextBox();
+            this.searchQuery = new Foundation.Controls.Search.Context();
+            this.filterAvail = new Foundation.Controls.List.Filter.Available();
+            this.filterApplied = new Foundation.Controls.List.Filter.Applied();
+            var listView = new Controls.Product.ListView();
+            Product.ListView.prototype.ctor.call(this, listView);
+            this.List.Entity = "@Resource.Dictionary.product_s";
+
+            $.views.helpers({
+                Navigation: Navigation,
+                dateFormatter: Foundation.ValueConverter.DateFormatter
+            });
+        },
+
+        ValidateRequest: function (token) {
+            if (token.AccountType == Model.AccountType.Business && token.AccountId > 0 && token.Action == Model.Session.Action.ProductsView) {
+                return true;
+            }
+            else
+                return false;
+        },
+
+        Initialize: function (options) {
+            ReflectMenu(Navigation.Menu.MainItem.ItemType.Scroll, Navigation.Menu.SubItem.ItemType.Scroll_Businesses, true);
+
+            Foundation.List.Filter.View.prototype.Initialize.call(this, options);
+
+            var $this = this;
+            this.List.View.ItemViewCommand = function (product) {
+                Navigation.Product.View(Model.AccountType.Business, $this._token.AccountId, product.Id);
+            };
+        },
+
+        Load: function () {
+            var $this = this;
+            User.Service.Business.Profile.Get(this._token.AccountId, function (account) {
+                Foundation.Page.prototype.ReflectTitle.call($this, [String.format("@Resource.Global.X_Ads", account.Name)]);
+
+                var bizsrtUrl = Navigation.Main.Href($this._token, {
+                    baseUri: (account.Country === "United States" ? "https://www.bizsort.com/company-products" : "https://www.bizsort.ca/company-products"),
+                    bizsrtAction: 23,
+                    bizsrtProps: {
+                        'AccountType': 3,
+                        'AccountId': 4
+                    }
+                });
+                $('#bizsrt').attr('href', bizsrtUrl).text(account.Country === "United States" ? "Bizsort.com" : "Bizsort.ca");
+                canonicalLink(bizsrtUrl);
+
+                //Used by fetchPage to set Href
+                $this.Account = account;
+                Foundation.List.View.prototype.Load.call($this);
+                $('.accountName').text(account.Name);
+                if (account.ProductsView == Model.Business.ProductsView.ProductCatalog)
+                    $('.hasCatalog').show();
+                $this.searchBox.Prompt(String.format("@Resource.Global.Search_X_products", account.Name));
+                $('.asyncData').show();
+            }, jQuery.proxy(this.handleEntityFetchError, this));
+        },
+
+        fetchList: function (queryInput, callback, faultCallback) {
+            if (!String.isNullOrWhiteSpace(this._token.SearchQuery))
+                queryInput.SearchQuery = this._token.SearchQuery;
+            User.Service.Business.Profile.GetProducts(this._token.AccountId, queryInput, callback, faultCallback);
+        },
+
+        onCommand: function (command) {
+            switch (command) {
+                case "ViewAccount":
+                    Navigation.Business.ProfileView(this._token.AccountId);
+                    break;
+                case "ViewCatalog":
+                    if (this.Account.ProductsView == Model.Business.ProductsView.ProductCatalog)
+                        Navigation.Business.CatalogView(this._token.AccountId);
+                    break;
+            }
+        }
+    }))();
+</script>}
+
+@section headerFrame {
+<table style="width:100%; margin-bottom:5px;">
+    <tr>
+        <td style="text-align:center; color:firebrick; padding-bottom:5px;">This page has moved to the new <a id="bizsrt" href="https://www.bizsort.ca" style="color: blue;">Bizsort</a> web site.</td>
+    </tr>
+    <tr class="asyncData" style="display:none;">
+        <td style="text-align:left; padding-bottom:5px;">
+            <a class="href accountName" data-command="ViewAccount"></a>&nbsp;&gt;&nbsp;@Resource.Dictionary.Products<span class="hasCatalog" style="display:none;">&nbsp;[<a class="href" data-command="ViewCatalog">@Resource.Business.Catalog_View</a>]</span>
+        </td>
+    </tr>
+    <tr>
+        <td>
+            <table style="float:left;">
+                <tr>
+                    <td id="searchQuery" style="display:none; text-align:left; float:left; width:auto; padding-bottom:5px; padding-right:10px;">
+                        @Resource.Dictionary.Search
+                    </td>
+                    <td id="filterApplied" style="display:none; text-align:left; padding-bottom:5px;">
+                        @Resource.Dictionary.Filter
+                    </td>
+                </tr>
+            </table>
+        </td>
+    </tr>
+</table>}

@@ -1,0 +1,85 @@
+﻿@{
+    Page.Title = String.Format(Resource.Global.Page_TitleFormat, Resource.Business.Directory);
+    Page.MicrodataItemType = "http://schema.org/ItemList";
+    Layout = "~/Layout/_LCRPanel.cshtml";
+}
+
+@section head {
+<script type="text/javascript">
+    Page = new (Product.ListView.extend({
+        ctor: function () {
+            this.ApplicationPage = "/Business/Promotion/Products";
+            this.searchLocation = new Controls.Location.Current();
+            this.searchBox = new Foundation.Controls.Search.TextBox();
+            this.searchBox.Prompt("@Resource.Business.Search_Promotion_products");
+            this.searchQuery = new Foundation.Controls.Search.Context();
+            var listView = new Controls.Product.ListView();
+            Product.ListView.prototype.ctor.call(this, listView);
+            this.List.Entity = "@Resource.Dictionary.product_s";
+
+            $.views.helpers({
+                dateFormatter: Foundation.ValueConverter.DateFormatter
+            });
+        },
+
+        ValidateRequest: function (token) {
+            if (token.AccountType == Model.AccountType.Business && token.AccountId > 0 && token.CommunityId > 0 && token.Action == Model.Session.Action.PromotionProductsView) {
+                return true;
+            }
+            else
+                return false;
+        },
+
+        Initialize: function (options) {
+            ReflectMenu(Navigation.Menu.MainItem.ItemType.Scroll, Navigation.Menu.SubItem.ItemType.Scroll_Businesses, true);
+            Foundation.List.Filter.View.prototype.Initialize.call(this, options);
+
+            var $this = this;
+            this.List.View.ItemViewCommand = function (product) {
+                Navigation.Product.View(Model.AccountType.Business, $this._token.AccountId, product.Id);
+            };
+        },
+
+        Load: function () {
+            var $this = this;
+            User.Service.Business.Profile.Get(this._token.AccountId, function (account) {
+                Foundation.Page.prototype.ReflectTitle.call($this, [String.format("@Resource.Global.X_Ads", account.Name)]);
+                $('.accountName').text(account.Name);
+            }, jQuery.proxy(this.handleEntityFetchError, this));
+
+            User.Service.Business.Promotion.Get(this._token.AccountId, this._token.CommunityId, function (promotion) {
+                $('.promotionName').text(promotion.Name);
+                Foundation.List.View.prototype.Load.call($this);
+                $('.asyncData').show();
+            }, jQuery.proxy(this.handleEntityFetchError, this));
+        },
+
+        fetchList: function (queryInput, callback, faultCallback) {
+            if (!String.isNullOrWhiteSpace(this._token.SearchQuery))
+                queryInput.SearchQuery = this._token.SearchQuery;
+            User.Service.Business.Promotion.GetProducts(this._token.AccountId, this._token.CommunityId, queryInput, callback, faultCallback);
+        },
+
+        onCommand: function (command) {
+            switch (command) {
+                case "ViewAccount":
+                    Navigation.Business.ProfileView(this._token.AccountId);
+                    break;
+            }
+        }
+    }))();
+</script>}
+
+@section headerFrame {
+<table style="width:100%; margin-bottom:5px;">
+    <tr class="asyncData" style="display:none;">
+        <td style="text-align:left; padding-bottom:5px;">
+            <a class="href accountName" data-command="ViewAccount"></a>&nbsp;&gt;&nbsp;@Resource.Dictionary.Promotions&nbsp;&gt;&nbsp;<span class="promotionName"></span>
+        </td>
+    </tr>
+    <tr>
+        <td id="searchQuery" style="display:none; text-align:left; float:left; width:auto; padding-bottom:5px;">
+            @Resource.Dictionary.Search
+        </td>
+    </tr>
+</table>}

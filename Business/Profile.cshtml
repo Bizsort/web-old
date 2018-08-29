@@ -1,0 +1,354 @@
+﻿@{
+    Page.Title = String.Format(Resource.Global.Page_TitleFormat, Resource.Business.Directory);
+    Page.MicrodataItemType = "http://schema.org/LocalBusiness";
+    Layout = "~/Account/_View.cshtml";
+}
+
+@section token {
+<script type="text/javascript">
+    Navigation.Main.GetToken = function (pageUri) {
+        var token = new Session.Navigation.Token(pageUri, Model.Session.Action.ProfileView);
+        token.AccountType = Model.AccountType.Business;
+        token.AccountId = Settings.Business.Id;
+        return token;
+    };
+</script>}
+
+@section head {
+<script type="text/javascript">
+    Page = new (Account.View.extend({
+        ctor: function () {
+            this.ApplicationPage = "/Business/Profile";
+            Account.View.prototype.ctor.call(this);
+            this.category = new Foundation.Controls.Group.Path(User.Service.Master.Category);
+            this.image = new Controls.Image.FlipView();
+            this.promotions = new Controls.Image.List();
+            this.communities = new Controls.Image.Slider();
+            this.connections = new Controls.Image.Slider();
+            this.confirmConnect = new Foundation.Controls.Confirm.Form();
+            this.confirmConnect.MessageFormat = "@Resource.Business.Connection_Invitation_Confirm";
+            this.confirmConnect.OptionTemplate = "<center><textarea id=\"inviteMessage\" placeholder=\"@Resource.Dictionary.Message\" rows=\"10\" cols=\"35\"></textarea></center>";
+            this.connectAction = new Controls.Action.Interaction(this.confirmConnect);
+            this.connectAction.Text("@Resource.Business.Connection_Invite");
+            this.connectAction.ExercisedText = "@Resource.Business.Connection_Invited";
+
+            $.views.helpers({
+                Navigation: Navigation
+            });
+        },
+
+        Initialize: function (options) {
+            if (!this.IsPopup)
+                ReflectMenu(Navigation.Menu.MainItem.ItemType.Scroll, Navigation.Menu.SubItem.ItemType.Scroll_Businesses, true);
+
+            var $this = this;
+
+            this.category.Populated = function (c) {
+                $('#category').show().parent('tr').show();
+            };
+            this.category.GroupSelected = function (category) {
+                if (category.Id > 0)
+                    Navigation.Business.Search(category.Id, undefined, Session.User.LocationId);
+            };
+
+            this.connectAction.StateOverride = function (connect, state) {
+                if (state == Foundation.Controls.Action.State.Active) {
+                    if (Session.User.Business.Id > 0) {
+                        Admin.Service.Business.Affiliation.Exists($this._token.AccountId, function (exists) {
+                            if (exists == Admin.Service.Business.Affiliation.Type.None)
+                                connect.State(Foundation.Controls.Action.State.Active);
+                            else if ((exists & Admin.Service.Business.Affiliation.Type.Affiliation) == 0)
+                                connect.State(Foundation.Controls.Action.State.Inactive);
+                            else
+                                connect.State(Foundation.Controls.Action.State.Hidden);
+                        });
+                    }
+                    else
+                        connect.State(Foundation.Controls.Action.State.Inactive);
+                }
+                else if (connect.State() != state)
+                    connect.State(state);
+            };
+
+            //Will call EvaluateActions
+            Account.View.prototype.Initialize.call(this, options);
+
+            this.promotions.Initialize($('#promotions'));
+            this.promotions.ItemCommand = function (promotion) {
+                Navigation.Business.PromotionProductsView($this._token.AccountId, promotion.Id);
+            };
+
+            this.communities.VisibleChanged(jQuery.proxy(this.ensureTabsVisible, this));
+            this.communities.ItemCommand = function (community) {
+                Navigation.Community.ProfileView(community.Id);
+            };
+
+            this.connections.VisibleChanged(jQuery.proxy(this.ensureTabsVisible, this));
+            this.connections.ItemCommand = function (connection) {
+                Navigation.Business.ProfileView(connection.Id);
+            };
+
+            this.confirmConnect.Submit = function () {
+                var business = Session.User.Business.Id;
+                if (Session.User.Id > 0 && business > 0) {
+                    var invite = {
+                        From: business,
+                        To: $this._token.AccountId
+                    };
+
+                    var inviteMessage = $('#inviteMessage', $this.confirmConnect.$container).val();
+                    if (!String.isNullOrWhiteSpace(inviteMessage))
+                        invite.Text = inviteMessage;
+
+                    Admin.Service.Business.Affiliation.Invite(invite, function (success) {
+                        $this.connectAction.Exercised(true);
+                        $this.confirmConnect.SubmitComplete();
+                    }, jQuery.proxy($this.confirmConnect.Invalidate, $this.confirmConnect));
+                }
+            };
+            this.confirmConnect.Error = function (error, data) {
+                if (error == Foundation.ErrorMessageType.Data_DuplicateRecord)
+                    return String.format("@Resource.Global.Editor_Error_processing_request_X", String.format("@Resource.Business.Connection_Invitation_Exists", $this.confirmConnect.Content["Invitee"]));
+            };
+        },
+
+        AddActions: function () {
+            this.actionPanel.Add(this.messageAction);
+            this.actionPanel.Add(this.connectAction);
+        },
+
+        AddTabs: function (productsTab) {
+            this.profileTabs.Initialize($('#profileTabs'));
+            this.descriptionTab = new Foundation.Controls.Layout.TabItem($('<div style="vertical-align:top;" id="description" itemprop="description"></div>'), {
+                visible: false
+            });
+            this.descriptionTab.Header = "<span>@Resource.Dictionary.Description</span>";
+            this.profileTabs.AddTab(this.descriptionTab);
+            this.multiProductTab = new Foundation.Controls.Layout.TabItem($('<div style="vertical-align:top;" id="multiProduct"></div>'), {
+                visible: false
+            });
+            this.multiProductTab.Header = "<span>@Resource.Dictionary.Products</span>";
+            this.profileTabs.AddTab(this.multiProductTab);
+            productsTab.Header = "<span>@Resource.Dictionary.Products</span><span style=\"display: none;\">&nbsp;[<a class=\"href\" data-command=\"ViewProducts\">@Resource.Action.View</a><span id=\"viewCatalog\" style=\"display:none;\">&nbsp;|&nbsp;<a class=\"href\" data-command=\"ViewCatalog\">@Resource.Business.Catalog_View</a></span>]</span>";
+            productsTab.Selected = function (selected) {
+                Foundation.Controls.Layout.TabItem.prototype.Selected.call(this, selected);
+                //don't affect the viewCatalog span
+                if (selected)
+                    $($(this.Header).children('span')[1]).show();
+                else
+                    $($(this.Header).children('span')[1]).hide();
+            }
+            this.profileTabs.AddTab(productsTab);
+            var communitiesTab = new Foundation.Controls.Layout.TabItem(this.communities, {
+                bindVisible: true,
+                childCss: {
+                    'margin-left': 'auto',
+                    'margin-right': 'auto'
+                }
+            });
+            communitiesTab.Header = "<span>@Resource.Dictionary.Communities</span>";
+            this.profileTabs.AddTab(communitiesTab);
+            var connectionsTab = new Foundation.Controls.Layout.TabItem(this.connections, {
+                bindVisible: true,
+                childCss: {
+                    'margin-left': 'auto',
+                    'margin-right': 'auto'
+                }
+            });
+            connectionsTab.Header = "<span>@Resource.Dictionary.Connections</span><span style=\"display: none;\">&nbsp;[<a class=\"href\" data-command=\"ViewConnections\">@Resource.Action.View</a>]</span>";
+            connectionsTab.Selected = function (selected) {
+                Foundation.Controls.Layout.TabItem.prototype.Selected.call(this, selected);
+                if (selected)
+                    $('span', this.Header).slice(1).show();
+                else
+                    $('span', this.Header).slice(1).hide();
+            }
+            this.profileTabs.AddTab(connectionsTab);
+        },
+
+        ensureTabsVisible: function () {
+            var selectedIndex = -1;
+            if (this.descriptionTab.Visible()) {
+                selectedIndex = 0;
+            }
+            else if (this.products.Visible()) {
+                selectedIndex = 2;
+            }
+            else if (this.communities.Visible()) {
+                selectedIndex = 3;
+            }
+            else if (this.connections.Visible()) {
+                selectedIndex = 4;
+            }
+
+            if ((selectedIndex == -1 || (this._token.NavigationFlags & Model.Session.NavigationFlags.Tab_Products) > 0) && this.multiProductTab.Visible()) {
+                selectedIndex = 1;
+            }
+
+            if (selectedIndex >= 0) {
+                if (!this.profileTabs.Visible())
+                    this.profileTabs.Visible(true);
+                if (this.profileTabs.SelectedIndex() != selectedIndex)
+                    this.profileTabs.SelectedIndex(selectedIndex);
+            }
+            else //if (this.profileTabs.Visible())
+                this.profileTabs.Visible(false);
+        },
+
+        ValidateRequest: function (token) {
+            if (token.AccountType == Model.AccountType.Business && token.AccountId > 0 && token.Action == Model.Session.Action.ProfileView) {
+                return true;
+            }
+            else
+                return false;
+        },
+
+        Load: function () {
+            var $this = this;
+            User.Service.Business.Profile.View(this._token.AccountId, function (business) {
+                document.title = String.format("@Resource.Global.Page_TitleFormat2", business.Name, "@Resource.Business.Directory");
+
+                var bizsrtUrl = Navigation.Main.Href($this._token, {
+                    baseUri: (business.HeadOffice.Location.Address.Country === "United States" ? "https://www.bizsort.com/company-profile" : "https://www.bizsort.ca/company-profile"),
+                    bizsrtAction: 2,
+                    bizsrtProps: {
+                        'AccountType': 3,
+                        'AccountId': 4
+                    }
+                });
+                $('#bizsrt').attr('href', bizsrtUrl).text(business.HeadOffice.Location.Address.Country === "United States" ? "Bizsort.com" : "Bizsort.ca");
+                canonicalLink(bizsrtUrl);
+
+                User.Service.Business.Profile.GetPromotions($this._token.AccountId, jQuery.proxy($this.promotions.Populate, $this.promotions));
+                var ensureTabs;
+                if (!String.isNullOrEmpty(business.Products)) {
+                    $('#multiProduct').html(business.Products);
+                    $this.multiProductTab.Visible(true);
+                    ensureTabs = true;
+                }
+                else
+                    $this.products.Populate(User.Service.Business.Product.GetThumbnails($this._token.AccountId));
+                $this.communities.Populate(User.Service.Community.Profile.GetThumbnails(Model.AccountType.Business, $this._token.AccountId));
+                $this.connections.Populate(User.Service.Business.Affiliation.GetThumbnails($this._token.AccountId));
+                Account.View.prototype.populate.call($this, business);
+
+                if (business.Category && business.Category.Id)
+                    $this.category.Populate(business.Category.Id, $('#category'));
+
+                if (business.Images)
+                    $this.image.Populate(business.Images, $('#image'));
+
+                if (!String.isNullOrEmpty(business.RichText)) {
+                    $('#description').html(business.RichText);
+                    $this.descriptionTab.Visible(true);
+                    ensureTabs = true;
+                    metaDescription(business.Text);
+                }
+
+                if (ensureTabs)
+                    $this.ensureTabsVisible();
+
+                $this.confirmConnect.Content["Invitee"] = business.Name;
+
+                if (business.HeadOffice.Location) {
+                    $this.address.Populate(business.HeadOffice.Location, $this.address.Container);
+                    $this.address.PlaceName = business.Name;
+                }
+
+                if (!String.isNullOrWhiteSpace(business.HeadOffice.Phone)) {
+                    $('#phone').text(business.HeadOffice.Phone);
+                    $('#phonePlaceholder').show();
+
+                    if (!String.isNullOrWhiteSpace(business.HeadOffice.Phone1))
+                        $('#phone1').text(business.HeadOffice.Phone1).parent('tr').show();
+                    else
+                        $('#phone1').parent('tr').hide();
+                }
+                else
+                    $('#phone').parent('tr').hide();
+
+                if (!String.isNullOrWhiteSpace(business.HeadOffice.Fax))
+                    $('#fax').text(business.HeadOffice.Fax).parent('tr').show();
+                else
+                    $('#fax').parent('tr').hide();
+
+                if (!String.isNullOrWhiteSpace(business.WebSite)) {
+                    var webSiteUrl = (business.WebSite.substr(0, 4) == "http" ? business.WebSite : "@Resource.Global.Url_Http" + business.WebSite);
+                    $('#webSite').append($('<a href="' + webSiteUrl + '" target="_blank">' + business.WebSite + '</a>')).parent('tr').show();
+                }
+                else
+                    $('#webSite').parent('tr').hide();
+
+                if (!String.isNullOrWhiteSpace(business.Email))
+                    $('#email').append($('<a href="mailto:' + business.Email + '" target="_blank">' + business.Email + '</a>')).parent('tr').show();
+                else
+                    $('#email').parent('tr').hide();
+
+                if (business.Options.Use_Catalog)
+                    $('#viewCatalog').show();
+            }, jQuery.proxy(this.handleEntityFetchError, this));
+        },
+
+        onCommand: function (command) {
+            switch (command) {
+                case "ViewConnections":
+                    Navigation.Business.ConnectionsView(this._token.AccountId);
+                    break;
+                case "ViewCatalog":
+                    Navigation.Business.CatalogView(this._token.AccountId);
+                    break;
+                default:
+                    Account.View.prototype.onCommand.call(this, command);
+                    break;
+            }
+        }
+    }))();
+</script>}
+
+@section context {
+<table style="width:100%; margin-bottom:5px;">
+    <tr>
+        <td style="text-align:center; color:firebrick;">This page has moved to the new <a id="bizsrt" href="https://www.bizsort.ca" style="color: blue;">Bizsort</a> web site.</td>
+    </tr>
+    <tr style="display:none;">
+        <td id="category" style="text-align:left; padding-top:5px;">@Resource.Business.Listed_in_category&nbsp;</td>
+    </tr>
+</table>}
+
+@section centerFrame {
+<table class="attributes" id="profileAttributes">
+    <tr id="address" style="display:none;" itemprop="address" itemscope itemtype="http://schema.org/PostalAddress"></tr>
+    <tr style="display:none;">
+        <td class="label">@Resource.Dictionary.Email</td>
+        <td class="value" id="email"></td>
+    </tr>
+    <tr style="display:none;">
+        <td class="label">@Resource.Dictionary.Web_site</td>
+        <td class="value" id="webSite" itemprop="url"></td>
+    </tr>
+    <tr id="phonePlaceholder" style="display:none;">
+        <td class="label" style="vertical-align:top;">@Resource.Dictionary.Phone</td>
+        <td class="values">
+            <table>
+                <tr>
+                    <td class="value" id="phone" itemprop="telephone"></td>
+                </tr>
+                <tr style="display:none;">
+                    <td class="value" id="phone1"></td>
+                </tr>
+            </table>
+        </td>
+    </tr>
+    <tr style="display:none;">
+        <td class="label">@Resource.Dictionary.Fax</td>
+        <td class="value" id="fax"></td>
+    </tr>
+</table>}
+
+<center data-link="visible{:promotions.Visible()}"> 
+    <fieldset class="formPanel" style="display:inline-block;" id="promotions">
+        <legend>@Resource.Dictionary.Promotions</legend>
+    </fieldset>
+</center>
+<div class="tabControl subtle" style="display:none; margin-top:10px;" id="profileTabs">
+</div>

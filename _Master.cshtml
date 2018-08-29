@@ -1,0 +1,798 @@
+﻿@{
+    Page.Title = Page.Title ?? Resource.Global.Adscroll;
+    Layout = "~/_AdScrl.cshtml";
+    bool cors = false;
+    string imageGetUrl = null;
+    string serviceOrigin = null;
+    if (String.IsNullOrWhiteSpace(Settings.Instance.Service.Origin))
+    {
+        serviceOrigin = Href("~/svc");
+        imageGetUrl = Href("~/image");
+    }
+    else
+    {
+        serviceOrigin = String.Format("{0}/svc", Settings.Instance.Service.Origin);
+        imageGetUrl = String.Format("{0}/image", Settings.Instance.Service.Origin);
+        cors = true;
+    }
+}
+@section head{
+<meta name="fragment" content="!">
+<style type="text/css">
+    body {
+	    padding: 4px 4px 3px 4px;
+        background: url('@Href("images/background.jpg")');
+    }
+</style>
+<link href="~/CSS/Colors.css" rel="stylesheet" />
+<link href="~/CSS/Menu.css" rel="stylesheet" />
+<link href="~/CSS/Form.css" rel="stylesheet" />
+<link href="~/CSS/Misc.css" rel="stylesheet" />
+<link href="~/Images/SiteIcon.ico" rel="shortcut icon" type="image/x-icon" />
+<script src="~/JS/External/jsrender.js" type="text/javascript"></script>
+<script src="~/JS/External/jquery.observable.js" type="text/javascript"></script>
+<script src="~/JS/External/jquery.views.js" type="text/javascript"></script>
+<script src="~/JS/External/jquery.tipsy.js" type="text/javascript"></script>
+<script src="~/JS/Resource" type="text/javascript"></script>
+<script src="~/JS/Settings" type="text/javascript"></script>
+<script type="text/javascript">
+Admin = {};
+User = {};
+Session = {
+    Flags: {
+        @*Existense of Handoff is key to new session handling, explicit flag would prevent us from enabling CreateOnDemand and "Conditional GET, return 304 NotModified" above*@
+        @if (Page.SessionRequiredNew != null)
+        { 
+            <text>RequiredNew: true</text> 
+        } 
+        else if (Page.SessionRequired != null)
+        { 
+            <text>Required: true</text> 
+        }
+    }
+};
+
+@*RenderPage("~/Master/_Settings.cshtml", @imageGetUrl)*@
+@*RenderPage("~/Master/_Resource.cshtml")*@
+
+window.onerror = function (e, file, line) {
+    debugger;
+    if (e.Type && e.Type == Foundation.Exception.SessionException.Type.NotInitialized && e instanceof Foundation.Exception.SessionException) {
+        Navigation.Main.Error('Session', e);
+    }
+    else {
+        var message = 'JavaScript error: \t' + errorMessage(e);
+        if (file) {
+            message += '\nFile name:      \t' + file;
+            if (line)
+                message += '\nLine number:       \t' + line;
+        }
+        showError(message);
+    }
+    return true;
+};
+
+Foundation = {
+    Page: Class.extend({
+        ctor: function (options) {
+            this.$tmpl_properties = [];
+        },
+
+        bootstrap: function () {
+            var controls = $('[data-ctrl]');
+            var placeholder, type, instance;
+            var pending = [];
+            for (var i = 0, l = controls.length; i < l; i++) {
+                placeholder = $(controls[i]);
+                type = placeholder.attr('data-ctrl');
+                placeholder.removeAttr('data-ctrl');
+                instance = System.Type.CreateInstance(type); //controls[i].getAttribute('data-ctrl')
+                instance.$type = type; //for debugging, temporary
+                var id = placeholder.attr('id');
+                if (id) {
+                    this[id] = instance;
+                }
+                pending.push({ Placeholder: placeholder, Instance: instance });
+                controls[i].$ctrl = instance;
+            }
+
+            for (var i = 0, l = pending.length; i < l; i++) {
+                pending[i].Instance.init(pending[i].Placeholder);
+            }
+
+            if (this.$tmpl_properties) {
+                for (var i = 0, l = this.$tmpl_properties.length; i < l; i++) {
+                    this.$tmpl_properties[i].Apply.call(this);
+                }
+                delete this.$tmpl_properties;
+            }
+        },
+
+        Initialize: function (options) {
+            var $this = this;
+
+            if (this.searchLocation) {
+                if (!this.searchLocation.$container)
+                    this.searchLocation.Initialize($('#locationPlaceholder'));
+
+                this.searchLocation.Change = function () {
+                    if ($this.onLocationChange)
+                        return $this.onLocationChange();
+                };
+            }
+            else if (this.searchCategory) {
+                if (!this.searchCategory.$container)
+                    this.searchCategory.Initialize($('#locationPlaceholder'));
+
+                this.searchCategory.Change = function () {
+                    if ($this.onCategoryChange)
+                        return $this.onCategoryChange();
+                };
+            }
+
+            if (this.searchBox) {
+                this.SearchEnabled = true;
+
+                if (!this.searchBox.$container)
+                    this.searchBox.Initialize($('#searchPlaceholder'));
+
+                this.searchBox.Search = jQuery.proxy(this.onSearch, this);
+            }
+            else
+                this.SearchEnabled = false;
+
+            if (this.searchQuery) {
+                if (!this.searchQuery.$container)
+                    this.searchQuery.Initialize($('#searchQuery'));
+
+                if (!String.isNullOrWhiteSpace(this._token.SearchQuery)) {
+                    this.searchQuery.Text(this._token.SearchQuery);
+                    $('#searchQuery').show();
+                }
+
+                this.searchQuery.Reset = function () {
+                    $this._token.SearchQuery = undefined;
+                    $this.searchQuery.Text('');
+                    $('#searchQuery').hide();
+                    $this.doSearch();
+                };
+            }
+
+            $('#content').delegate('a[data-command],button[data-command]', 'click', function (e) {
+                var command = $(this).attr('data-command');
+                var commandParam = $(this).attr('data-commandParam');
+                if (commandParam == "prepare" && $this.prepareCommand)
+                    $this.prepareCommand(command);
+                else
+                    $this.onCommand(command, commandParam);
+                return false; //Important
+            });
+
+            if (this.actionPanel) {
+                var actionPanelContainer = $('#rightFrame');
+                if (options && options.actionPanel && options.actionPanel.container) {
+                    this.actionPanel.Container = options.actionPanel.container;
+                    actionPanelContainer = this.actionPanel.Container;
+                }
+                this.actionPanel.Initialize(actionPanelContainer/*, { css: { marginLeft: '10px' } }*/);
+                if (this.AddActions)
+                    this.AddActions();
+            }
+
+            $(document).keydown(this.document_keydown);
+
+            this.EvaluateActions(false);
+        },
+
+        Load: function () {
+            this.Loaded = true;
+            $("#content").attr('data-loaded', 'true');
+        },
+
+        DataLink: function () {
+            $.link(true, $("#content"), this);
+        },
+
+        SessionIsValid: function () {
+            return Session.User.Id > 0 ? true : false;
+        },
+
+        ValidateOrRedirect: function (token) {
+            return this.ValidateRequest(token);
+        },
+
+        Navigate: function (target) {
+            if (target == Navigation.Target.Application && this.ApplicationPage && this.ApplicationPage.length > 0) {
+                this._token.setViewUri(this.ApplicationPage);
+                if (this._token.LocationId != Settings.Location.Country && this._token.LocationId != Session.User.LocationId)
+                    this._token.LocationId = Session.User.LocationId;
+                if (this._token.CategoryId && this._token.CategoryId != Session.User.CategoryId)
+                    this._token.CategoryId = Session.User.CategoryId;
+                Navigation.Main.Go(this._token, { Target: Navigation.Target.Application });
+                return true;
+            }
+            return false;
+        },
+
+        ReflectTitle: function (title, appendAdScrl) {
+            if (appendAdScrl)
+                title.push(Resource.Global.Adscroll);
+            document.title = title.join(Resource.Global.Page_TitleSeparator_2);
+        },
+
+        ReflectUser: function () {
+            this.EvaluateActions(Session.User.Id > 0 ? false : true);
+
+            if (Session.User.Id > 0 && Session.User.LocationId > 0 &&
+                typeof this.searchLocation != 'undefined' && this.searchLocation instanceof Foundation.Controls.Location.Current && this.searchLocation.Id() != Session.User.LocationId)
+                this.searchLocation.Populate(Session.User.LocationId);
+
+            if (Session.User.Id > 0 && Session.User.CategoryId > 0 &&
+                typeof this.searchCategory != 'undefined' && this.searchCategory instanceof Foundation.Controls.Category.Current && this.searchCategory.Id() != Session.User.CategoryId)
+                this.searchCategory.Populate(Session.User.CategoryId);
+
+            if (typeof this.actionPanel != 'undefined') {
+                if (Session.User.Id > 0)
+                    this.actionPanel.HeaderVisible(false);
+                else
+                    this.actionPanel.HeaderVisible(true);
+            }
+        },
+
+        Actions: function() {
+            if (typeof this.actionPanel != 'undefined') {
+                return this.actionPanel.Actions;
+            }
+            else {
+                if (!this.$actions)
+                    this.$actions = [];
+                return this.$actions;
+            }
+        },
+
+        EvaluateActions: function (reset) {
+            var actions = this.Actions();
+            if (actions) {
+                for (var i = 0, l = actions.length; i < l; i++) {
+                    if (!actions[i].Page)
+                        actions[i].Page = this;
+                    else if (actions[i].Page != this)
+                        throw String.format("{0} action's Page property is set to an instance of {1} that is different from {2} instance", actions[i], typeof actions[i].Page, typeof this);
+
+                    actions[i].Evaluate(reset);
+                }
+            }
+        },
+
+        onSearch: function (query) {
+            if (!String.isNullOrWhiteSpace(query)) {
+                if (this.searchQuery) {
+                    this.searchQuery.Text(query);
+                    $('#searchQuery').show();
+                }
+                this.searchBox.Text('');
+                this._token.SearchQuery = query;
+                this.doSearch();
+            }
+        },
+
+        doSearch: function () {
+            if (!String.isNullOrWhiteSpace(this._token.SearchQuery))
+                Navigation.Product.Search(0, 0, this._token.SearchQuery, Session.User.LocationId);
+            else
+                Navigation.Main.Home();
+
+            return true;
+        },
+
+        onCommand: function (command, param) {
+        },
+
+        GetErrorMessage: function (error, data) {
+            return this.GetErrorMessage_Ctrl(error, data);
+        },
+
+        GetErrorMessage_Ctrl: function (error, data, ctrl) {
+            var errMessage;
+            if (data) {
+                if (data.toString)
+                    errMessage = data.toString();
+                else if (typeof data == "string")
+                    errMessage = data;
+                else
+                    errMessage = data.Message || data.message; //Built-in Javascript Error object has it's message property name with lowercase m
+            }
+            return errMessage || Resource.Exception.Unknown;
+        },
+
+        handleEntityFetchError: function (e) {
+            if (e instanceof Foundation.Exception.DataException && e.Type == Foundation.Exception.DataException.Type.RecordNotFound)
+                Navigation.Main.NotFound();
+            else
+                showError(e, true);
+        }
+    })
+};
+</script>
+<script src="~/JS/Common/Model.js" type="text/javascript"></script><script src="~/JS/Model.js" type="text/javascript"></script>
+<script src="~/JS/Common/Session.js" type="text/javascript"></script><script src="~/JS/Session.js" type="text/javascript"></script>
+<script src="~/JS/Common/Service.js" type="text/javascript"></script><script src="~/JS/Service.js" type="text/javascript"></script>
+<script src="~/JS/Common/Foundation.js" type="text/javascript"></script><script src="~/JS/Foundation.js" type="text/javascript"></script>
+<script src="~/JS/Common/RichText.js" type="text/javascript"></script>
+<script src="~/JS/Foundation/Controls.js" type="text/javascript"></script>
+<script src="~/JS/Controls.js" type="text/javascript"></script>
+<script src="~/JS/Navigation.js" type="text/javascript"></script>
+@RenderSection("token", required: false)
+<script src="~/JS/Menu" type="text/javascript"></script>
+<script type="text/javascript">
+    ajaxError = function (jqxhr, settings, error, handler) {
+        debugger;
+        error = Service.TranslateFault(jqxhr) || jqxhr.statusText || error;
+        if (!handler || typeof handler != 'function') {
+            showError(error, true);
+        }
+        else
+            handler(error);
+    };
+
+    showError = function (error, ajax) {
+        if (ajax)
+            error = Page.GetErrorMessage(error.ErrorMessageType || Foundation.ErrorMessageType.Unknown, error);
+        if (!Session.Flags.Navigating) {
+            (new View.Error(error)).Show();
+            setOrCreateMetaTag("name", "robots", "noindex");
+        }
+        else
+            console.error(error);
+    };
+
+    (function () {
+
+        @if (cors)
+        {
+            <text>jQuery.support.cors = true; //Required for IE</text>
+        }
+        jQuery.ajaxSetup({
+            error: ajaxError
+        });
+
+        window['_signInForward'] = false;
+        (function () {
+            Service.Get.Url("@serviceOrigin");
+            Service.Post.Url("@serviceOrigin");
+            Settings.Image.Url = "@imageGetUrl";
+            @*Set the User before we wire SignInChanged otherwise ReflectUser and subsequent EvaluateActions will be called twice*@
+            try {
+                var handoffCookie, sessionHandoff;
+                var controlCookie = Session.Cookies.Get("@Settings.Instance.Session.ControlCookieName");
+                if (controlCookie) {
+                    Session.Cookies.Delete("@Settings.Instance.Session.ControlCookieName");
+                }
+
+                @*Could handoff via storage, but would need to review SessionExists and service logic
+                if (Session.Enabled) {
+                    handoffCookie = Session.Storage.getItem("@Settings.Instance.Session.HandoffCookieName");
+                    if(handoffCookie)
+                    {
+                        sessionHandoff = JSON.parse(handoffCookie);
+                        Session.Storage.removeItem("@Settings.Instance.Session.HandoffCookieName");
+                    }
+                } else*@
+                handoffCookie = Session.Cookies.Get("@Settings.Instance.Session.HandoffCookieName");
+                if (handoffCookie) {
+                    sessionHandoff = handoffCookie.Value;
+                    Session.Cookies.Delete("@Settings.Instance.Session.HandoffCookieName");
+                }
+
+                @*Try to Enter session under following conditions
+                1. Session.HandlingType.Strict mode is on
+                2. SessionRequired or SessionRequiredNew is set
+                3. HandoffCookie with Token is present*@
+                var sessionRequired = (Settings.Session.Handling & Model.Session.HandlingType.Strict) > 0 || Session.Flags.Required || Session.Flags.RequiredNew;
+
+                if (sessionHandoff) {
+                    console.log('Handoff cookie is present');
+
+                    if (!Session.Flags.RequiredNew) {
+                        if(sessionHandoff.Token) {
+                            console.log('Session ' + sessionHandoff.Token + ' resolved from Handoff cookie');
+                            @*Could also check if session token was created by the same browser window and if not, reload the page*@
+                            Service.SessionToken = sessionHandoff.Token;
+                        }
+
+                        @*If session has been recycled it assumes no currently logged-on user*@
+                        if (sessionHandoff.User) {
+                            Session.User.Enter(sessionHandoff.User);
+
+                            if (sessionHandoff.User.Id == 0 && sessionHandoff.User.SignInForward) {
+                                _signInForward = true;
+                            }
+                        }
+                    }
+                    else
+                        console.log('New session is required, ignoring Handoff cookie ' + handoffCookie.Value.Token);
+                }
+                else if(sessionRequired)
+                    console.log('No session Handoff cookie is found, assuming this is a new session');
+
+                if (Session.Flags.RequiredNew && Session.Enabled) {
+                    Session.Storage.clear();
+                    Session.Cache.Reset();
+                }
+
+                @*Important - validate token first and don't login if token is not valid, otherwise after the redirect Session.Enter will fail due to server session having a userId already*@
+                Session.Proceed = Navigation.Main.Validate(); //Suceeded by Session.Flags.Proceed
+                @*If we don't call Session.Enter on bad token, new session will be issued on redirect, which may not be desireble*@
+                Session.EnterPromise = !Session.OutOfBand() && (sessionRequired || Service.SessionToken || Session.User.Id > 0)  ? Session.Enter(function (enterResponse) {
+                    try {
+                        if (Session.EnterPromise) {
+                            delete Session.EnterPromise;
+                        }
+                        if (enterResponse) {
+                            if (!Guid.isEmpty(enterResponse.Token)) {
+                                Service.SessionToken = enterResponse.Token;
+                            }
+                            else if (sessionRequired)
+                                throw new Foundation.Exception.SessionException(Foundation.Exception.SessionException.Type.NotInitialized);
+
+                            if (Session.User.Id == 0) {
+                                @*TryLoginUser moved to Session.EnterPromise*@
+                            }
+                            else if (!Guid.isEmpty(enterResponse.Key))
+                                Service.Post.Key(enterResponse.Key);
+                            else
+                                throw new Foundation.Exception.SessionException(Foundation.Exception.SessionException.Type.NotAuthenticated);
+                        }
+                        else
+                            throw new Foundation.Exception.SessionException(Foundation.Exception.SessionException.Type.NotInitialized);
+                    }
+                    catch (e) {
+                        Navigation.Main.Error('Session', 'Handhshake error [1]: ' + e);
+                    }
+                }, function (e) {
+                    if (!Session.Recover(controlCookie))
+                        Navigation.Main.Error('Session', 'Handhshake error [2]: ' + e);
+                }) : {};
+            }
+            catch (e) {
+                Navigation.Main.Error('Session', 'Handhshake error [3]: ' + e);
+            }
+
+            @*If we could test for Refresh or X button click then in those cases we should not handoff session
+            Would still need to handoff when user clicks Back or changes the Url manually or via favorites*@
+            $(window).on("beforeunload", function () { //window.onbeforeunload = won't work in FF
+                @*Need to set cookie and preserve cache regardless of the Navigating flag as if Browser Back button was clicked it will bypass the Navigation routine
+                if (!Session.Flags.Navigating)*@
+                try {
+                    Session.Handoff();
+                }
+                catch (e) {
+                    console.error(errorMessage(e));
+                }
+            });
+
+            $(window).on("unload", function () {
+                @*if (Page.NavigatedFrom)
+                        Page.NavigatedFrom();*@
+                try {
+                    if (!Session.Flags.Navigating && Service.SessionToken) {
+                        Session.Exit(function (response) {
+                            try {
+                                @*Delete HandoffCookie if session wasn't found, was found and closed and can't be re-entered
+                                Caveats
+                                2. When the page navigated to is retrieved from browser cache (304, Back button, etc) it may have already validated the session
+                                but we should not delete the cookie as it may not have yet entered it (Chrome)
+                                1. When session cookie is left behind when browser window is closed and new window if opened whithin timeout window it will try to re-enter the session instead of creating a new one*@
+                                if ((response === Model.Session.ExitResponse.Closed && (Settings.Session.Handling & Model.Session.HandlingType.ReenterClosed) == 0) ||
+                                    response === Model.Session.ExitResponse.NotFound) {
+                                    if (Session.Enabled)
+                                        Session.Storage.removeItem("@Settings.Instance.Session.HandoffCookieName");
+                                    Session.Cookies.Delete("@Settings.Instance.Session.HandoffCookieName");
+                                }
+                                delete Service.SessionToken;
+                            }
+                            catch (e) { }
+                        });
+                    }
+                    else if (Session.Flags.Cleanup) {
+                        Session.Cache.Reset();
+                        @*Could handoff via storage, but would need to review SessionExists and service logic
+                        Session.Storage.clear(); //would wipe the session cookie*@
+                    }
+                }
+                catch (e) {
+                    console.error(errorMessage(e));
+                }
+            });
+        })();
+
+        Session.User.SignInChanged(function () {
+            if (jQuery.isReady) {
+                ReflectUser(true);
+                if (_signIn.IsOpen && Session.User.Id > 0) {
+                    _signIn.Hide();
+                    signInForward();
+                }
+            }
+        });
+
+        @*RenderPage("~/Master/_Menu.cshtml")*@
+        window['_menuCtrl'] = new Controls.Navigation.MenuControl(menu);
+
+        window['_signIn'] = new Controls.SignIn.Form();
+        _signIn.SignedIn = function (e) {
+            if (e && e.ShowTerms)
+                showTerms();
+
+            if (signInForward()@*_signInForward*@) { @*Moved to signInForward*@
+                @*if (!Navigation.Main.TryForward())
+                    Navigation.Main.Refresh();
+                _signInForward = false;*@
+            }
+            @*else if (_token.Action == Model.Session.Action.AdHocProductNew)
+                Navigation.Product.New(session.User.CanPost(), session.User.CategoryId, null, null);
+            else //replaced by ReflectUser(evaluateActions) in User.SignInChanged handler
+                Navigation.Main.Refresh();*@
+        };
+        _signIn.Cancel = function () {
+            if (_signInForward)
+                _signInForward = false;
+            _signIn.Hide();
+        };
+    })();
+
+    function signInForward() {
+        if (_signInForward) {
+            if (!Navigation.Main.TryForward())
+                Navigation.Main.Refresh();
+            _signInForward = false;
+            return true;
+        }
+    };
+
+    function SignIn() {
+        if (Session.User.Id == 0)
+            _signIn.Show();
+    };
+
+    function onAccountCreateEdit(sender) {
+        switch ($(sender).attr('data-command')) {
+            case 'Create':
+                Navigation.Main.CreateAccount();
+                break;
+            case 'Edit':
+                if (Session.User.Id > 0)
+                    Navigation.Personal.ProfileEdit();
+                else
+                    _signIn.Show();
+                break;
+        }
+        return false;
+    };
+
+    function onSignInOut(sender) {
+        switch ($(sender).attr('data-command')) {
+            case 'SignIn':
+                SignIn();
+                break;
+            case 'SignOut':
+                Session.Logout();
+
+                Session.Cookies.Delete(Settings.Session.AutoLogin.UserCookieName);
+
+                @*Session.TryLoginGuest();*@
+
+                if (typeof Page === 'undefined' || Page._token.IsAdmin())
+                    Navigation.Main.Home();
+                @*else //replaced by ReflectUser(evaluateActions) in User.SignInChanged handler
+                    Navigation.Main.Refresh();*@
+                break;
+        }
+        return false;
+    };
+
+    function onCommand(command) {
+        switch (command) {
+            case "App":
+                if (Page && Page.Navigate(Navigation.Target.Application))
+                    return;
+                Navigation.Main.Go(new Session.Navigation.Token("@Settings.Instance.WebSite.HomePage", Model.Session.Action.Default), { Target: Navigation.Target.Application });
+                break;
+            case "Locations":
+                Navigation.Community.TopicsView(Settings.Community.Locations);
+                break;
+            case "Categories":
+                Navigation.Community.TopicsView(Settings.Community.Categories);
+                break;
+            case "Support":
+                Navigation.Community.TopicsView(Settings.Community.Support);
+                break;
+            case "Contact":
+                Navigation.Business.ProfileView(Settings.Business.Id);
+                break;
+            case "Terms":
+                showTerms();
+                break;
+        }
+    };
+
+    function ReflectUser(evaluateActions) {
+        if (Session.User.Id > 0) {
+            $('#greeting').text("@Resource.Dictionary.Welcome");
+            UserName(Session.User.Name).attr('data-command', 'Edit');
+            $('#signInOut').text("@Resource.Action.Sign_out").attr('data-command', 'SignOut');
+
+            _menuCtrl.itemFromType(Navigation.Menu.MainItem.ItemType.Advertise).SubItems.itemFromType(Navigation.Menu.SubItem.ItemType.Advertise_Review).Visible(true);
+            _menuCtrl.itemFromType(Navigation.Menu.MainItem.ItemType.Advertise).SubItems.itemFromType(Navigation.Menu.SubItem.ItemType.Advertise_Review_Peer).Visible(true);
+            if (Session.User.SecurityProfile.CanReview_Staff) {
+                _menuCtrl.itemFromType(Navigation.Menu.MainItem.ItemType.Advertise).SubItems.itemFromType(Navigation.Menu.SubItem.ItemType.Advertise_Review_Staff).Visible(true);
+                _menuCtrl.itemFromType(Navigation.Menu.MainItem.ItemType.Advertise).SubItems.itemFromType(Navigation.Menu.SubItem.ItemType.Advertise_NewlyPosted).Visible(true);
+            }
+            if (Session.User.SecurityProfile.CanManage_OffensiveList)
+                _menuCtrl.itemFromType(Navigation.Menu.MainItem.ItemType.Advertise).SubItems.itemFromType(Navigation.Menu.SubItem.ItemType.Advertise_Offensive).Visible(true);
+            _menuCtrl.itemFromType(Navigation.Menu.MainItem.ItemType.Personal).Visible(true);
+        }
+        else {
+            $('#greeting').text("@Resource.Dictionary.Welcome_guest");
+            UserName("@Resource.Action.Sign_up").attr('data-command', 'Create');
+            $('#signInOut').text("@Resource.Action.Sign_in").attr('data-command', 'SignIn');
+
+            _menuCtrl.itemFromType(Navigation.Menu.MainItem.ItemType.Advertise).SubItems.itemFromType(Navigation.Menu.SubItem.ItemType.Advertise_Review).Visible(false);
+            _menuCtrl.itemFromType(Navigation.Menu.MainItem.ItemType.Advertise).SubItems.itemFromType(Navigation.Menu.SubItem.ItemType.Advertise_Review_Peer).Visible(false);
+            _menuCtrl.itemFromType(Navigation.Menu.MainItem.ItemType.Advertise).SubItems.itemFromType(Navigation.Menu.SubItem.ItemType.Advertise_Review_Staff).Visible(false);
+            _menuCtrl.itemFromType(Navigation.Menu.MainItem.ItemType.Advertise).SubItems.itemFromType(Navigation.Menu.SubItem.ItemType.Advertise_NewlyPosted).Visible(false);
+            _menuCtrl.itemFromType(Navigation.Menu.MainItem.ItemType.Advertise).SubItems.itemFromType(Navigation.Menu.SubItem.ItemType.Advertise_Offensive).Visible(false);
+            _menuCtrl.itemFromType(Navigation.Menu.MainItem.ItemType.Personal).Visible(false);
+        }
+
+        ReflectBusiness();
+
+        if (evaluateActions) {
+            if (typeof Page !== 'undefined' && (Session.User.Id > 0 || Page._token.IsUser()))
+                Page.ReflectUser();
+        }
+    };
+
+    function UserName(userName) {
+        return $('#accountCreateEdit').text(userName);
+    }
+
+    function ReflectBusiness() {
+        var hasBusiness = Session.User.Business.Id > 0;
+        //_menuCtrl.itemFromType(Navigation.Menu.MainItem.ItemType.Advertise).SubItems.itemFromType(Navigation.Menu.SubItem.ItemType.Advertise_Business).Visible(hasBusiness);
+        @*for(var item in MainMenu.itemFromType(Navigation.Menu.MainItem.ItemType.Business).SubItems)
+        {
+            switch (item.Type)
+            {
+                case Navigation.Menu.SubItem.ItemType.Business_Profile:
+                    item.Visible(true);
+                    break;
+                default:
+                    item.Visible(hasBusiness);
+                    break;
+            }
+        }*@
+    };
+
+    function ReflectMenu(mainItemType, subItemType, selectedItemClickable) {
+        _menuCtrl.ReflectMenu(mainItemType, subItemType, selectedItemClickable);
+    };
+
+    $(document).ready(function () {
+        var loaded = ($("#content").attr('data-loaded') === "true" ? true : false);
+        if (!loaded) {
+            Page.bootstrap();
+
+            @*Need to get session token before issuing async GET requests that require session (such as User.Service.Community.Product.Get/GetThumbnails)
+            alternative to setting async: false in Session.Enter as it seems to cause an error in FF*@
+            $.when(Session.EnterPromise).then(function () {
+                if (Session.Proceed) { //Suceeded by Session.Flags.Proceed
+                    @*Important - validate token first and don't login if token is not valid, otherwise after the redirect Session.Enter will fail due to server session having a userId already*@
+                    if (Session.User.Id == 0 && !Session.Flags.SuppressAutoLogin) {
+                        Session.TryLoginUser(function (success) {
+                            @*if (!success)
+                            Session.TryLoginGuest();*@
+                        });
+                    }
+                    _menuCtrl.Initialize(loaded ? $('#menu').empty() : $('#menu'));
+                    $('li:first', $("#menuMainList")).css('marginLeft', 55);
+
+                    if (Session.User.Id > 0)
+                        ReflectUser(false);
+
+                    var proceed = Page.ValidateOrRedirect(Session.Token.Current);
+                    if (proceed === true) {
+                        Page._token = Session.Token.Current;
+                        //Trying to attach to static content - doesn't work
+                        Page.Initialize(/*{ Loaded: loaded }*/);
+                        var leftFrame = $('#leftFrame');
+                        if (!leftFrame.children().length)
+                            leftFrame.hide();
+                        Page.DataLink();
+                        if (Page.Load/* && !loaded*/)
+                            Page.Load();
+                        @*if (Page.NavigatedTo)
+                        Page.NavigatedTo();*@
+
+                        @*Do not delete Session.Proceed*@
+                        if (_signInForward && Session.User.Id == 0) {
+                            SignIn();
+                        }
+                        return;
+                    }
+                    else if (typeof proceed === "string") @*Page redirected to new Url*@
+                        return;
+                }
+                else if (Session.SignInForward) { //Suceeded by Session.Flags.SignInForwardToken
+                    Navigation.Main.Go(Session.SignInForward);
+                    return;
+                }
+
+                debugger;
+                Navigation.Main.Home();
+            });
+
+            @*var footer = $('#footer');
+            $('#locations', footer).attr('href', Navigation.Main.Href(Navigation.Community.TopicsView(Settings.Community.Locations, 0, { suppressNavigate: true })));
+            $('#categories', footer).attr('href', Navigation.Main.Href(Navigation.Community.TopicsView(Settings.Community.Categories, 0, { suppressNavigate: true })));
+            $('#support', footer).attr('href', Navigation.Main.Href(Navigation.Community.TopicsView(Settings.Community.Support, 0, { suppressNavigate: true })));
+            $('#profile', footer).attr('href', Navigation.Main.Href(Navigation.Business.ProfileView(Settings.Business.Id, { suppressNavigate: true })));*@
+        }
+    });
+</script>
+@RenderSection("head", required: false)}
+<div class="page-content-wrap">
+    <a class="page-logo" onclick="Navigation.Main.Home();">@Resource.Dictionary.Ad</a>
+    <div class="page-header" style="font-weight:bold; min-height: 30px;">
+        <table style="width:100%">
+            <tr>
+                <td style="text-align:left; vertical-align:top; color: #FFFFFF; padding-left:2px;">    
+                    <!--a class="href" onclick="Navigation.Main.Home();">@Resource.Global.Adscroll</a--><br />
+                </td>
+                <td style="text-align:right; padding: 2px 5px 0px 0px;">
+                    <table style="float:right;">
+                        <tr>
+                            <td>
+                                <span id="greeting">@Resource.Dictionary.Welcome_guest</span>
+                            </td>
+                            <td style="padding-left: 10px;">
+                                <a id="accountCreateEdit" onclick="onAccountCreateEdit(this);" data-command="Create">@Resource.Action.Sign_up</a>
+                            </td>
+                            <td style="padding-left: 10px;">
+                                <a id="signInOut" onclick="onSignInOut(this);" data-command="SignIn">@Resource.Action.Sign_in</a>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td colspan="3" id="locationPlaceholder" style="text-align:left; display:none;">
+                            </td>
+                        </tr>
+                    </table>
+                </td>
+            </tr>
+        </table>
+    </div>
+    <div id="menu"></div>
+    @RenderBody()
+    <div class="page-footer-pusher"></div>
+</div>
+@*http://ryanfait.com/resources/footer-stick-to-bottom-of-page*@
+<div id="footer" class="page-footer">
+    <table style="margin-top:10px; width:100%">
+        <tr>
+            <td style="padding-left:15px;"><a rel="nofollow" onclick="onCommand('App');">@Resource.Global.AdScrl_Application</a></td>
+            <td>&nbsp;|&nbsp;</td>
+            @*<td><a id="locations" onclick="onCommand('Locations');">@Resource.Global.AdScrl_Locations</a></td>
+            <td>&nbsp;|&nbsp;</td>
+            <td><a id="categories" onclick="onCommand('Categories');">@Resource.Global.AdScrl_Categories</a></td>
+            <td>&nbsp;|&nbsp;</td>*@
+            <td><a id="support" onclick="onCommand('Support');">@Resource.Global.AdScrl_Support</a></td>
+            <td>&nbsp;|&nbsp;</td>
+            <td><a id="profile" onclick="onCommand('Contact');">@Resource.Global.AdScrl_Contact</a></td>
+            <td>&nbsp;|&nbsp;</td>
+            <td style="padding-right:15px;"><a rel="nofollow" onclick="onCommand('Terms');">@Resource.Global.AdScrl_Terms</a></td>
+        </tr>
+        <!--tr>
+            <td colspan="11" style="padding-left:15px;"><a href="https://plus.google.com/118005769293503270175" tabindex="-1" rel="publisher">Google+</a></td>
+        </tr-->
+    </table>
+</div>

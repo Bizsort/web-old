@@ -1,0 +1,340 @@
+﻿@{
+    Page.Title = String.Format(Resource.Global.Page_TitleFormat, Resource.Community.Directory);
+    Page.MicrodataItemType = "http://schema.org/BlogPosting";
+    Layout = "~/Layout/_LCRPanel.cshtml";
+}
+
+@section head {
+<script type="text/javascript">
+    Page = new (Foundation.List.View.extend({
+        ctor: function () {
+            this.ApplicationPage = "/Community/Topic/Posts";
+            this.searchLocation = new Controls.Location.Current();
+            this.searchBox = new Foundation.Controls.Search.TextBox();
+            this.searchBox.Prompt("@Resource.Global.Topic_Search_Posts");
+            this.searchQuery = new Foundation.Controls.Search.Context();
+            var listView = new Controls.Community.Topic.Post.ListView();
+            Foundation.List.View.prototype.ctor.call(this, listView);
+            this.List.Entity = "@Resource.Dictionary.post_s";
+
+            this.ownType = new Controls.Community.Member.OwnType();
+            this.actionPanel = new Controls.Action.Panel();
+            this.joinLeaveAction = new Controls.Action.JoinLeaveCommunity();
+            this.joinLeaveAction.CanLeave = this.ownType.CanLeave();
+            this.postForm = new Controls.Community.Topic.Post.InlineForm();
+            this.postForm_Edit = new Controls.Community.Topic.Post.Form();
+            this.postAction = new Controls.Action.SelfAction();
+            this.postAction.Text("@Resource.Global.Topic_Reply");
+
+            $.views.helpers({
+                dateFormatter: Foundation.ValueConverter.DateFormatter,
+                visibilityFromBool: Foundation.ValueConverter.Visibility.FromBool
+            });
+        },
+
+        Initialize: function (options) {
+            ReflectMenu(Navigation.Menu.MainItem.ItemType.Scroll, Navigation.Menu.SubItem.ItemType.Scroll_Communities, true);
+
+            var $this = this;
+
+            this.joinLeaveAction.StateOverride = function (joinLeave, state) {
+                if (state == Foundation.Controls.Action.State.Active) {
+                    if (Session.User.Id > 0 && $this.Topic) {
+                        Admin.Service.Community.Membership.Exists($this._token.CommunityId, function (exists) {
+                            if (exists == Admin.Service.Community.Membership.Type.None)
+                                joinLeave.State(Foundation.Controls.Action.State.Active);
+                            else if ((exists & Admin.Service.Community.Membership.Type.Membership) == 0)
+                                joinLeave.State(Foundation.Controls.Action.State.Inactive);
+                            else {
+                                joinLeave.State(Foundation.Controls.Action.State.Active);
+                                joinLeave.Exercised(true);
+                            }
+                        });
+                    }
+                    else
+                        joinLeave.State(Foundation.Controls.Action.State.Inactive);
+                }
+                else if (joinLeave.State() != state)
+                    joinLeave.State(state);
+            };
+
+            this.ownType.Initialize($('#ownType'));
+            this.ownType.ValueChanged = function () {
+                $.observable($this.joinLeaveAction).setProperty('CanLeave', $this.ownType.CanLeave());
+                //TODO: Moderators can use the Owner/Community/Topic/Posts view to edit
+                $this.List.View.CanManage($this.ownType.CanManage());
+                $this.checkCreatePost();
+            };
+
+            this.postAction.StateOverride = function (createPost, state) {
+                if (state == Foundation.Controls.Action.State.Active)
+                    $this.checkCreatePost();
+                else if (createPost.State() != state)
+                    createPost.State(state);
+            };
+
+            this.actionPanel.Actions.push(this.postAction);
+
+            //Will call EvaluateActions
+            Foundation.List.View.prototype.Initialize.call(this, options);
+
+            var container = $('<ul class="stackPanel"><li class="action" data-link="visible{:~visibilityFromBool(postForm.Visible(), \'!\')}"></li><li style="display:none;"></li></ul>');
+            $('#placeholder', this.List.$container).append(container).parent('tr').show();
+            var first = $('li:first', container);
+            this.postAction.Initialize(first, { wireEvents: true });
+            first.prepend('[&nbsp;').append('&nbsp;]');
+            this.postForm.Initialize({ Container: $('li:last', container) });
+
+            this.List.View.EditCommand = function (post) {
+                if (Session.User.Id > 0 && post.Id > 0 && ($this.ownType.CanManage() || post.PostedBy.Id == (post.PostedBy.AccountType == Model.AccountType.Business ? Session.User.Business.Id : Session.User.Id))) {
+                    $this.postForm_Edit.Populate($this._token.CommunityId, $this._token.CommunityTopicId, post.Id);
+                    $this.postForm_Edit.Show();
+                }
+            };
+
+            this.postAction.actionCommand = function (command) {
+                if ($this.postAction.$action.hasClass('active') && $this.postAction.Enabled() && $this.SessionIsValid())
+                    $this.postForm.Show();
+            };
+
+            this.postForm.Community = this._token.CommunityId;
+            this.postForm.Topic = this._token.CommunityTopicId;
+            this.postForm.Submit = function () {
+                //if ($this.postForm.PostId > 0)
+                //    $this.Pager.RefreshPage();
+                //else
+                $this.populate(0);
+            };
+
+            this.postForm_Edit.Initialize();
+            this.postForm_Edit.Community = this._token.CommunityId;
+            this.postForm_Edit.Topic = this._token.CommunityTopicId;
+            this.postForm_Edit.Submit = function () {
+                //if ($this.postForm_Edit.PostId > 0)
+                $this.Pager.RefreshPage();
+                //else
+                //    $this.populate(0);
+            };
+
+            this.confirmLeave = this.joinLeaveAction.ConfirmLeave;
+            this.confirmLeave.Submit = function () {
+                if (Session.User.Id > 0 && $this._token.CommunityId > 0 && $this.ownType.CanLeave()) {
+                    Admin.Service.Community.Membership.LeaveCommunity($this._token.CommunityId, function (success) {
+                        $this.confirmLeave.SubmitComplete();
+                        if ($this.Topic.Community.Options.Open_To_View)
+                            Navigation.Main.Refresh();
+                        else
+                            Navigation.Community.ProfileView($this._token.CommunityId);
+                    }, jQuery.proxy($this.confirmLeave.Invalidate, $this.confirmLeave));
+                }
+            };
+
+            this.confirmMembership = this.joinLeaveAction.PopupForm();
+            this.confirmMembership_Request = this.confirmMembership.Content;
+            this.confirmMembership.Submit = function () {
+                var member = Session.User.Id;
+                if (member > 0) {
+                    var community = $this._token.CommunityId;
+                    var business = $this.Topic.Community.Owner.AccountType == Model.AccountType.Business ? $this.Topic.Community.Owner.Id : 0;
+                    var confirmMembership_Type = $this.confirmMembership_Request.Type;
+                    if (community > 0 && confirmMembership_Type > 0 && confirmMembership_Type != Model.Community.MemberType.Owner) {
+                        if (confirmMembership_Type == Model.Community.MemberType.Member && $this.Topic.Community.Options.Open_To_Join) {
+                            Admin.Service.Community.Membership.Join(community, business, function (success) {
+                                $this.confirmMembership.SubmitComplete();
+                                Navigation.Main.Refresh();
+                            }, jQuery.proxy($this.confirmMembership.Invalidate, $this.confirmMembership));
+                        }
+                        else {
+                            var request = {
+                                Community: community,
+                                Type: confirmMembership_Type
+                            };
+
+                            var requestMessage = $('#requestMessage', $this.confirmMembership.$container).val();
+                            if (!String.isNullOrWhiteSpace(requestMessage))
+                                request.Text = requestMessage;
+
+                            Admin.Service.Community.Membership.Request(request, function (success) {
+                                $this.confirmMembership.SubmitComplete();
+                                Navigation.Main.Refresh();
+                            }, jQuery.proxy($this.confirmMembership.Invalidate, $this.confirmMembership));
+                        }
+                        return;
+                    }
+                }
+                throw new Foundation.Exception.OperationException(Foundation.Exception.OperationException.Type.Invalid);
+            };
+            this.confirmMembership.Error = function (error, data) {
+                if (error == Foundation.ErrorMessageType.Data_DuplicateRecord)
+                    return String.format("@Resource.Global.Editor_Error_processing_request_X", String.format("@Resource.Community.Request_Exists", $this.confirmMembership.Content["Community"]));
+                else if (error == Foundation.ErrorMessageType.Operation_InvalidInteraction)
+                    return "@Resource.Community.Business_Mismatch_Moderator";
+            };
+        },
+
+        EvaluateActions: function (reset) {
+            this.ownType.Populate(this._token.CommunityId);
+            //need to delay EvaluateActions until Topic is set as _joinLeaveAction depends on Topic.Community.Options and _postAction depends on Topic.Locked
+            if (!this.Topic) {
+                for (var i = 0, l = this.actionPanel.Actions.length; i < l; i++) {
+                    if (this.actionPanel.Actions[i].State() != Foundation.Controls.Action.State.Inactive)
+                        this.actionPanel.Actions[i].State(Foundation.Controls.Action.State.Inactive);
+                }
+            }
+            else {
+                Foundation.Page.prototype.EvaluateActions.call(this, reset);
+                this.checkAccess();
+            }
+        },
+
+        checkAccess: function () {
+            //Leave if no Open_To_View or Membership
+            if (!this.Topic.Community.Options.Open_To_View) {
+                if (Session.User.Id > 0) {
+                    var $this = this;
+                    Admin.Service.Community.Profile.IsMember(this._token.CommunityId, function (isMember) {
+                        if (!isMember) {
+                            Navigation.Community.ProfileView($this._token.CommunityId);
+                        }
+                    });
+                }
+                else
+                    Navigation.Community.ProfileView(this._token.CommunityId);
+            }
+        },
+
+        checkCreatePost: function () {
+            //Disable when search is on
+            var locked = !this.Topic || this.Topic.Locked ? !this.ownType.CanManage() : false;
+            if (this.Topic && !locked && (this.ownType.IsMember() || this.Topic.Community.Options.Open_To_Post) && String.isNullOrWhiteSpace(this._token.SearchQuery))
+                this.postAction.State(Foundation.Controls.Action.State.Active);
+            else
+                this.postAction.State(Foundation.Controls.Action.State.Inactive);
+            this.postForm.Hide();
+        },
+
+        ReflectUser: function () {
+            Foundation.Page.prototype.ReflectUser.call(this);
+            if (this.Topic) {
+                this.Pager.RefreshPage();
+                if (this.postForm.$container)
+                    this.postForm.Reset();
+                if (this.postForm_Edit.$container)
+                    this.postForm_Edit.Reset();
+            }
+            this.postForm.Hide();
+        },
+
+        AddActions: function () {
+            this.actionPanel.Add(this.joinLeaveAction);
+            //this.actionPanel.Add(this.postAction);
+        },
+
+        ValidateRequest: function (token) {
+            if (token.CommunityId > 0 && token.CommunityTopicId > 0 && token.Action == Model.Session.Action.CommunityTopicPostsView) {
+                return true;
+            }
+            else
+                return true;
+        },
+
+        Load: function () {
+            var $this = this;
+            User.Service.Community.Topic.Get_Ref(this._token.CommunityId, this._token.CommunityTopicId, function (topic) {
+                Foundation.Page.prototype.ReflectTitle.call(this, [topic.Title + "@Resource.Global.Page_TitleSeparator_1" + topic.Community.Name, String.format("@Resource.Global.X_Community_Forums", (topic.Community.Owner.AccountType == Model.AccountType.Business ? topic.Community.Owner.Name : "@Resource.Global.Adscroll"))]);
+                Foundation.List.View.prototype.Load.call($this);
+
+                if (topic.Category) {
+                    $('.blogForums').text("@Resource.Dictionary.Forums");
+                    $('.forumName').text(topic.Category.Name).parent('span').show();
+                }
+                else {
+                    $('.blogForums').text(topic.Community.BlogTitle || "@Resource.Dictionary.Blog");
+                }
+                $this.Topic = topic;
+
+                $('.accountName').text(topic.Community.Owner.Name);
+                if (topic.Community.Owner.AccountType == Model.AccountType.Business)
+                    $('.businessAccount').show();
+                $('.communityName').text(topic.Community.Name);
+
+                $('.topicTitle').text(topic.Title);
+                metaDescription(topic.Text);
+
+                $this.confirmLeave.Content["Community"] = topic.Community.Name;
+                $this.confirmMembership.Content["Community"] = topic.Community.Name;
+
+                if (topic.Community.Options.Open_To_Join)
+                    $this.confirmMembership_Request.Open_To_Join = true;
+
+                Foundation.Page.prototype.EvaluateActions.call($this, false); //Evaluate after Topic is set as _joinLeaveAction depends on Topic.Community.Options and _postAction depends on Topic.Locked
+                $this.checkAccess();
+
+                $('.asyncData').show();
+            }, jQuery.proxy(this.handleEntityFetchError, this));
+        },
+
+        doSearch: function () {
+            this.checkCreatePost();
+            Foundation.List.View.prototype.doSearch.call(this);
+        },
+
+        fetchList: function (queryInput, callback, faultCallback) {
+            this.postForm.Hide();
+            if (!String.isNullOrWhiteSpace(this._token.SearchQuery))
+                queryInput.SearchQuery = this._token.SearchQuery;
+            User.Service.Community.Topic.GetPosts(this._token.CommunityId, this._token.CommunityTopicId, queryInput, callback, faultCallback);
+        },
+
+        fetchPage: function (page, callback, faultCallback) {
+            var $this = this;
+            User.Service.Community.Topic.Post.ToPreview(this._token.CommunityId, this._token.CommunityTopicId, page, function (posts) {
+                callback($this.preparePage(page, posts));
+            }, faultCallback);
+        },
+
+        onCommand: function (command) {
+            switch (command) {
+                case "ViewAccount":
+                    switch (this.Topic.Community.Owner.AccountType) {
+                        case Model.AccountType.Business:
+                            Navigation.Business.ProfileView(this.Topic.Community.Owner.Id);
+                            break;
+                        case Model.AccountType.Personal:
+                            Navigation.Personal.ProfileView(this.Topic.Community.Owner.Id);
+                            break;
+                    }
+                    break;
+                case "ViewCommunity":
+                    Navigation.Community.ProfileView(this._token.CommunityId);
+                    break;
+                case "ViewCommunityForums":
+                    Navigation.Community.TopicsView(this._token.CommunityId);
+                    break;
+                case "ViewCommunityForum":
+                    Navigation.Community.TopicsView(this._token.CommunityId, this.Topic.Category.Id);
+                    break;
+            }
+        }
+    }))();
+</script>}
+
+@section headerFrame {
+<table style="width:100%; margin-bottom:5px;">
+    <tr class="asyncData" style="display:none;">
+        <td style="text-align:left; padding-bottom:5px;" itemprop="breadcrumb">
+            <span class="businessAccount" style="display:none;"><a class="href accountName" data-command="ViewAccount"></a>&nbsp;&gt;&nbsp;@Resource.Dictionary.Communities&nbsp;&gt;&nbsp;</span><a class="href communityName" data-command="ViewCommunity"></a>&nbsp;&gt;&nbsp;<a class="href blogForums" data-command="ViewCommunityForums"></a><span style="display:none;">&nbsp;&gt;&nbsp;<a class="href forumName" data-command="ViewCommunityForum"></a></span>&nbsp;&gt;&nbsp;<span class="topicTitle"></span>
+        </td>
+        <td id="ownType" rowspan="2" style="display:none; text-align:right; float:right; width:auto;">
+            @Resource.Dictionary.Member_type: <span id="text"></span>
+        </td>
+    </tr>
+    <tr>
+        <td colspan="2" id="searchQuery" style="display:none; text-align:left; float:left; width:auto; padding-bottom:5px; padding-right:10px;">
+            @Resource.Dictionary.Search
+        </td>
+    </tr>
+</table>}
+
+<div class="form header" style="margin-bottom: 5px;"><h4 class="topicTitle" itemprop="name"></h4></div>
+<!--span class="form header topicTitle" style="margin-bottom: 5px;"></span-->

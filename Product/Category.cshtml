@@ -1,0 +1,51 @@
+﻿@{
+    Page.Title = String.Format(Resource.Global.Page_TitleFormat, Resource.Global.Category_Select);
+    Layout = "~/Layout/_CenterPanel.cshtml";
+}
+
+@section head {
+<meta name="robots" content="noindex" />
+<script type="text/javascript">
+
+    Page = new (Foundation.Page.extend({
+        ctor: function () {
+            Foundation.Page.prototype.ctor.call(this);
+            this.categories = new Foundation.Controls.Group.Select_Inline(User.Service.Master.Category);
+            this.categories.HideParentAtRoot = Foundation.Controls.Group.HideParentType.Command;
+        },
+
+        ValidateRequest: function (token) {
+            if (token.Action == Model.Session.Action.CategorySelect) {
+                return true;
+            }
+            return false;
+        },
+
+        Initialize: function (options) {
+            if (!this._token.AccountType || this._token.AccountType == Model.AccountType.Personal)
+                ReflectMenu(Navigation.Menu.MainItem.ItemType.Advertise, Navigation.Menu.SubItem.ItemType.Advertise_Personal);
+            else
+                ReflectMenu(Navigation.Menu.MainItem.ItemType.Advertise, Navigation.Menu.SubItem.ItemType.Advertise_Business);
+
+            Foundation.Page.prototype.Initialize.call(this, options); //will try to initialize searchLocation and searchBox
+
+            this.categories.GroupSelected = function (category) {
+                Session.User.CategoryId = category.Id;
+                Navigation.Main.TryForward(true);
+            };
+            this.categories.Cancel = function () {
+                if (!Navigation.Main.TryBackward())
+                    Navigation.Main.Home();
+            };
+        },
+
+        Load: function () {
+            if (this._token.Forward && this._token.Forward.Action != Model.Session.Action.None && !String.isNullOrWhiteSpace(this._token.Forward.ViewUri))
+                this.categories.Populate(0, $('#categories'));
+            else //if (!View.Navigation.Main.TryBackward())
+                Navigation.Main.Home();
+        }
+    }))();
+</script>}
+
+<div id="categories" class="center" style="display:inline-block; text-align:left; margin-top:15px;"></div>

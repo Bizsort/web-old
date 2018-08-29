@@ -1,0 +1,44 @@
+﻿@using System.ServiceModel;
+@using System.ServiceModel.Web;
+@using System.ServiceModel.Activation;
+@using System.Web.Routing; 
+
+@{
+    WebPageHttpHandler.DisableWebPagesResponseHeader = true;
+
+    //RouteTable.Routes.RouteExistingFiles = false;
+
+    //http://social.technet.microsoft.com/wiki/contents/articles/1265.hosting-a-wcf-rest-service-on-iis-en-us.aspx
+    RouteTable.Routes.Add(new ServiceRoute("image", new WebServiceHostFactory(), typeof(Service.Image)));
+
+    var serviceHost = new ServiceHostFactory();
+    //var httpServiceHost = new ServiceHostFactory();
+
+    RouteTable.Routes.Add(new ServiceRoute("svc/master", serviceHost, typeof(User.Data.Master)));
+    RouteTable.Routes.Add(new ServiceRoute("svc/product", serviceHost, typeof(User.Data.Product)));
+    RouteTable.Routes.Add(new ServiceRoute("svc/business", serviceHost, typeof(User.Data.Business)));
+    RouteTable.Routes.Add(new ServiceRoute("svc/community", serviceHost, typeof(User.Data.Community)));
+    RouteTable.Routes.Add(new ServiceRoute("svc/personal", serviceHost, typeof(User.Data.Personal)));
+    RouteTable.Routes.Add(new ServiceRoute("svc/review", serviceHost, typeof(User.Data.Review)));
+
+    RouteTable.Routes.Add(new ServiceRoute("svc/admin/product", serviceHost, typeof(Admin.Data.Product)));
+    RouteTable.Routes.Add(new ServiceRoute("svc/admin/business", serviceHost, typeof(Admin.Data.Business)));
+    RouteTable.Routes.Add(new ServiceRoute("svc/admin/community", serviceHost, typeof(Admin.Data.Community)));
+    RouteTable.Routes.Add(new ServiceRoute("svc/admin/personal", serviceHost, typeof(Admin.Data.Personal)));
+    RouteTable.Routes.Add(new ServiceRoute("svc/admin/interaction", serviceHost, typeof(Admin.Data.Interaction)));
+    RouteTable.Routes.Add(new ServiceRoute("svc/admin/master", serviceHost, typeof(Admin.Data.Master)));
+
+    RouteTable.Routes.Add(new ServiceRoute("svc/process", serviceHost, typeof(Service.Process)));
+    RouteTable.Routes.Add(new ServiceRoute("svc/tool", serviceHost, typeof(Tool.Data.All)));
+
+    //http://blog.dynamicprogrammer.com/2010/07/08/webmatrix--razor--webpages-and-friendly-urls-.html
+    //http://msdn.microsoft.com/en-us/library/cc668201.ASPX
+    //http://msdn.microsoft.com/en-us/library/system.web.routing.pageroutehandler.aspx
+    RouteTable.Routes.Add(new AliasRoute("{*url}", new AliasRouteHandler()) { RouteExistingFiles = false });
+
+    //Foundation.Operation.Log.Start(); //Moved to Data.Host.Preload
+    Foundation.Session.Manager.Start();
+    Finance.Data.Points.Manager.Start();
+
+    // To learn how to optimize scripts and stylesheets in your site go to http://go.microsoft.com/fwlink/?LinkID=248973
+}

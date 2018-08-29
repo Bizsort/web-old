@@ -1,0 +1,24 @@
+﻿@{
+    var cshtmlFileName = Request.PhysicalPath + ".cshtml";
+    Response.AddFileDependency(cshtmlFileName);
+    Response.Cache.SetLastModifiedFromFileDependencies();
+    Response.Cache.SetMaxAge(TimeSpan.FromHours(24));
+    Response.ContentType = "application/javascript";
+    
+    string ifModifiedSince;
+    if ((ifModifiedSince = Request.Headers["If-Modified-Since"]) != null)
+    {
+        var lastModified = DateTime.MinValue;
+        if (DateTime.TryParse(ifModifiedSince, out lastModified))
+        {
+            //http://jagbarcelo.blogspot.ca/2009/03/conditional-get-and-etag-implementation.html
+            //http://edn.embarcadero.com/article/38123
+            if ((File.GetLastWriteTime(cshtmlFileName) - lastModified).TotalSeconds < 1)
+            {
+                Response.SetStatus(HttpStatusCode.NotModified);
+                Response.SuppressContent = true;
+                return;
+            }
+        }
+    }    
+}

@@ -1,0 +1,101 @@
+﻿@{
+    Page.SessionRequiredNew = true;
+    Page.Title = String.Format(Resource.Global.Page_TitleFormat, Resource.Product.Ad_Confirm);
+    Layout = "~/Layout/_CenterPanel.cshtml";
+
+    string error = null;
+    Guid guid = Guid.Empty;
+    Model.Product.Confirm confirm = null;
+    try
+    {
+        if (Request.QueryString.Count != 1 || 
+            !Guid.TryParse(Request.QueryString[0], out guid))
+        {
+            error = Resource.Global.Confirm_Error;
+        }
+        else
+        {
+            confirm = Service.Engine2.Client.ConfirmProductPost(guid, Request.UserHostAddress);
+        }
+    }
+    catch (Foundation.Exception.DataException ex)
+    {
+        error = (ex.Type == Foundation.Exception.DataExceptionType.RecordNotFound ? Resource.Global.Confirm_Request_NotFound : ex.Message);
+    }
+    catch (Foundation.Exception.OperationException ex)
+    {
+        error = (ex.Type == Foundation.Exception.OperationExceptionType.UnexpectedState ? Resource.Product.Ad_Confirm_Error : ex.Message);
+    }
+    catch (Exception ex)
+    {
+        error = ex.Message;
+    }
+}
+
+@section token {
+<script type="text/javascript">
+    Session.Flags.SuppressAutoLogin = true;
+
+    Navigation.Main.GetToken = function (pageUri) {
+        return new Session.Navigation.Token(pageUri, Model.Session.Action.ProductConfirm);
+    };
+</script>}
+
+@section head {
+<script type="text/javascript">
+    Page = new (Foundation.Page.extend({
+
+        ReflectUser: function () {
+            if (Session.User.Id == 0)
+                Foundation.Page.prototype.ReflectUser.call(this);
+            else
+                Navigation.Main.Home();
+        },
+
+        ValidateRequest: function (token) {
+            if (Session.User.Id == 0 && token.Action == Model.Session.Action.ProductConfirm) {
+                return true;
+            }
+            else
+                return false;
+        },
+
+        Load: function () {
+            Foundation.Page.prototype.Load.call(this); //Set the loaded flag
+            @if (error == null)
+            {
+                if (confirm != null && confirm.ProductId > 0)
+                {
+                    var productLink = "\"<a class=\"href\" style=\"font-style:italic;\" data-command=\"ViewProduct\">" + confirm.ProductName + "</a>\"";
+                    var prompt = String.Format((confirm.ProductStatus.PendingStatus == 0 ? Resource.Product.Ad_Confirm_Complete : Resource.Product.Ad_Confirm_PendingReview), productLink) + "&nbsp;" + Resource.Product.Ad_Confirm_ProductEdit;
+                    <text>
+                        $("#successMessage").html('@Html.Raw(prompt)').show();
+                    </text>
+                }
+                else
+                {
+                    <text>
+                        $("#successMessage").text("@Resource.Global.Confirm_Repeat").show();
+                    </text>
+                }                        
+            }
+            else
+            {
+                <text>
+                    $("#errorMessage").show();
+                </text>
+            }
+        },
+
+        onCommand: function (command) {
+            switch (command) {
+                case "ViewProduct":
+                    Navigation.Product.Edit(Model.AccountType.Personal, @(confirm != null ? confirm.ProductId : 0), "@guid.ToString("N")");
+                    break;
+            }
+        }
+    }))();
+</script>}
+
+<span id="errorMessage" class="formError" style="display:none;">@String.Format(Resource.Global.Editor_Error_processing_request_X, error)</span>
+<span id="successMessage" class="formSuccess" style="display:none;"></span>

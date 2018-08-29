@@ -1,0 +1,200 @@
+var menu = [
+    new Navigation.Menu.Item(Navigation.Menu.MainItem.ItemType.Scroll,
+    {
+        Text: "@Resource.Dictionary.Scroll",
+        SubItems: [
+            new Navigation.Menu.Item(Navigation.Menu.SubItem.ItemType.Scroll_Businesses,
+            {
+                Text: "@Resource.Business.Directory",
+                Command: function () {
+                    return Navigation.Business.Home();
+                },
+                Visible: true
+            }),
+            new Navigation.Menu.Item(Navigation.Menu.SubItem.ItemType.Scroll_Products,
+            {
+                Text: "@Resource.Dictionary.Products",
+                Command: function () {
+                    return Navigation.Product.Home();
+                },
+                Visible: true
+            }),
+            new Navigation.Menu.Item(Navigation.Menu.SubItem.ItemType.Scroll_Communities,
+            {
+                Text: "@Resource.Community.Directory",
+                Command: function () {
+                    return Navigation.Community.Home();
+                },
+                Visible: true
+            })
+        ],
+        Visible: true
+    }),
+    new Navigation.Menu.Item(Navigation.Menu.MainItem.ItemType.Advertise,
+    {
+        Text: "@Resource.Action.Advertise",
+        SubItems: [
+            new Navigation.Menu.Item(Navigation.Menu.SubItem.ItemType.Advertise_Personal,
+            {
+                Text: "@Resource.Product.Ad",
+                Command: function () {
+                    if (Session.User.Id == 0)
+                        return Navigation.Product.New(Model.Session.PostType.NoAccount, Session.User.CategoryId);
+                    else if (Session.User.Id > 0 && Session.User.ProductStats.CanList)
+                        return Navigation.Product.New(Model.Session.PostType.Personal, Session.User.CategoryId);
+                },
+                Visible: true
+            }),
+            new Navigation.Menu.Item(Navigation.Menu.SubItem.ItemType.Advertise_Business,
+            {
+                Text: "@Resource.Business.Listing",
+                Command: function () {
+                    if (Session.User.Id > 0){
+                        if (Session.User.Business.Id > 0 && Session.User.Business.ProductStats.CanList)
+                            return Navigation.Product.New(Model.Session.PostType.Business, Session.User.CategoryId);
+                        else if (Session.User.Business.Id)
+                            return Navigation.Business.ProfileEdit();
+                    }
+                    return Navigation.Business.ProfileNew();
+                },
+                Visible: true
+            }),
+            new Navigation.Menu.Item(Navigation.Menu.SubItem.ItemType.Advertise_Review,
+            {
+                Exclude: Navigation.Menu.Type.SubMenu,
+                Text: "@Resource.Product.Ads_Review",
+                Command: function () {
+                    if (Session.User.Id > 0)
+                        return Navigation.Product.Review();
+                },
+                Visible: false
+            }),
+            new Navigation.Menu.Item(Navigation.Menu.SubItem.ItemType.Advertise_Review_Peer,
+            {
+                Exclude: Navigation.Menu.Type.PopupMenu,
+                Text: "@Resource.Product.Ads_Review_Peer",
+                Command: function () {
+                    if (Session.User.Id > 0)
+                        return Navigation.Product.Review(false);
+                },
+                Visible: false
+            }),
+            new Navigation.Menu.Item(Navigation.Menu.SubItem.ItemType.Advertise_Review_Staff,
+            {
+                Exclude: Navigation.Menu.Type.PopupMenu,
+                Text: "@Resource.Product.Ads_Review_Staff",
+                Command: function () {
+                    if (Session.User.Id > 0 && Session.User.SecurityProfile.CanReview_Staff)
+                        return Navigation.Product.Review(true);
+                },
+                Visible: false
+            }),
+            new Navigation.Menu.Item(Navigation.Menu.SubItem.ItemType.Advertise_NewlyPosted,
+            {
+                Text: "@Resource.Product.Ads_NewlyPosted",
+                Command: function () {
+                    if (Session.User.Id > 0 && Session.User.SecurityProfile.CanReview_Staff)
+                        Navigation.Product.NewlyPosted();
+                },
+                Visible: false
+            }),
+            new Navigation.Menu.Item(Navigation.Menu.SubItem.ItemType.Advertise_Offensive,
+            {
+                Text: "@Resource.Global.Offensive_List",
+                Command: function () {
+                    if (Session.User.Id > 0 && Session.User.SecurityProfile.CanManage_OffensiveList)
+                        return Navigation.Product.Offensive();
+                },
+                Visible: false
+            })
+        ],
+        Visible: true
+    }),
+    new Navigation.Menu.Item(Navigation.Menu.MainItem.ItemType.Personal,
+    {
+        Text: "@Resource.Dictionary.Personal",
+        SubItems: [
+            new Navigation.Menu.Item(Navigation.Menu.SubItem.ItemType.Personal_Profile,
+            {
+                Text: "@Resource.Dictionary.Profile",
+                Command: function () {
+                    return Navigation.Personal.ProfileEdit();
+                },
+                Visible: true
+            }),
+            new Navigation.Menu.Item(Navigation.Menu.SubItem.ItemType.Personal_Products,
+            {
+                Text: "@Resource.Dictionary.Ads",
+                Command: function () {
+                    if (Session.User.Id > 0)
+                        return Navigation.Product.ListEdit(Model.AccountType.Personal);
+                },
+                Visible: true
+            }),
+            new Navigation.Menu.Item(Navigation.Menu.SubItem.ItemType.Personal_Lists,
+            {
+                Text: "@Resource.Dictionary.Lists",
+                Command: function () {
+                    if (Session.User.Id > 0)
+                        return Navigation.Personal.ListProductsEdit();
+                },
+                Visible: true
+            }),
+            new Navigation.Menu.Item(Navigation.Menu.SubItem.ItemType.Personal_Messages,
+            {
+                Text: "@Resource.Dictionary.Messages",
+                Command: function () {
+                    if (Session.User.Id > 0)
+                        return Navigation.Message.Received(Model.AccountType.Personal);
+                },
+                Visible: true
+            }),
+            new Navigation.Menu.Item(Navigation.Menu.SubItem.ItemType.Personal_Communities,
+            {
+                Text: "@Resource.Dictionary.Communities",
+                Command: function () {
+                    if (Session.User.Id > 0)
+                        return Navigation.Community.ListEdit(Model.AccountType.Personal);
+                },
+                Visible: true
+            })
+        ],
+        Visible: false
+    }),
+    new Navigation.Menu.Item(Navigation.Menu.MainItem.ItemType.Business,
+    {
+        Text: "@Resource.Global.My_Business",
+        SubItems: [
+            new Navigation.Menu.Item(Navigation.Menu.SubItem.ItemType.Business_Profile,
+            {
+                Text: "@Resource.Dictionary.Profile",
+                Command: function () {
+                    if (Session.User.Id > 0 && Session.User.Business.Id > 0)
+                        return Navigation.Business.ProfileEdit();
+                    else
+                        return Navigation.Business.ProfileNew();
+                },
+                Visible: true
+            }),
+            new Navigation.Menu.Item(Navigation.Menu.SubItem.ItemType.Business_Messages,
+            {
+                Text: "@Resource.Dictionary.Messages",
+                Command: function () {
+                    if (Session.User.Id > 0)
+                        return Navigation.Message.Received(Model.AccountType.Business);
+                },
+                Visible: false
+            }),
+            new Navigation.Menu.Item(Navigation.Menu.SubItem.ItemType.Business_Communities,
+            {
+                Text: "@Resource.Dictionary.Communities",
+                Command: function () {
+                    if (Session.User.Id > 0)
+                        return Navigation.Community.ListEdit(Model.AccountType.Business);
+                },
+                Visible: false
+            })
+        ],
+        Visible: false
+    })
+];

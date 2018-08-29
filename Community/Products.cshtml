@@ -1,0 +1,351 @@
+﻿@{
+    Page.Title = String.Format(Resource.Global.Page_TitleFormat, Resource.Community.Directory);
+    Page.MicrodataItemType = "http://schema.org/ItemList";
+    Layout = "~/Layout/_LCRPanel.cshtml";
+}
+
+@section head {
+<script type="text/javascript">
+    Page = new (Product.FolderView.extend({
+        ctor: function () {
+            this.ApplicationPage = "/Community/Products";
+            this.searchLocation = new Controls.Location.Current();
+            this.searchBox = new Foundation.Controls.Search.TextBox();
+            this.searchBox.Prompt("@Resource.Community.Search_Products");
+            this.searchQuery = new Foundation.Controls.Search.Context();
+            var listView = new Controls.Product.ListView();
+            listView.Account(true);
+            this.filterAvail = new Foundation.Controls.List.Filter.Available();
+            this.filterApplied = new Foundation.Controls.List.Filter.Applied();
+            Product.FolderView.prototype.ctor.call(this, listView);
+            this.List.Entity = "@Resource.Dictionary.ad_s";
+            this.List.CategoryEmptyHeaderTemplate = Foundation.Controls.List.Header.Template("@Resource.Global.Category_X_Empty", Foundation.Controls.List.Header.Formatter, "{{:Folder}}"),
+
+            $.views.helpers({
+                Navigation: Navigation,
+                dateFormatter: Foundation.ValueConverter.DateFormatter,
+                visibilityFromString: Foundation.ValueConverter.Visibility.FromString,
+                regularFolderVisibility: Foundation.List.Folder.RegularFolderVisibility
+            });
+
+            this.ownType = new Controls.Community.Member.OwnType();
+            this.actionPanel = new Controls.Action.Panel();
+            this.joinLeaveAction = new Controls.Action.JoinLeaveCommunity();
+            this.joinLeaveAction.CanLeave = this.ownType.CanLeave();
+        },
+
+        Initialize: function (options) {
+            ReflectMenu(Navigation.Menu.MainItem.ItemType.Scroll, Navigation.Menu.SubItem.ItemType.Scroll_Communities, true);
+
+            var $this = this;
+
+            this.joinLeaveAction.StateOverride = function (joinLeave, state) {
+                if (state == Foundation.Controls.Action.State.Active) {
+                    if (Session.User.Id > 0 && $this.Community) {
+                        Admin.Service.Community.Membership.Exists($this._token.CommunityId, function (exists) {
+                            if (exists == Admin.Service.Community.Membership.Type.None)
+                                joinLeave.State(Foundation.Controls.Action.State.Active);
+                            else if ((exists & Admin.Service.Community.Membership.Type.Membership) == 0)
+                                joinLeave.State(Foundation.Controls.Action.State.Inactive);
+                            else {
+                                joinLeave.State(Foundation.Controls.Action.State.Active);
+                                joinLeave.Exercised(true);
+                            }
+                        });
+                    }
+                    else
+                        joinLeave.State(Foundation.Controls.Action.State.Inactive);
+                }
+                else if (joinLeave.State() != state)
+                    joinLeave.State(state);
+            };
+
+            this.ownType.Initialize($('#ownType'));
+            this.ownType.ValueChanged = function () {
+                $.observable($this.joinLeaveAction).setProperty('CanLeave', $this.ownType.CanLeave());
+            };
+
+            //Will call EvaluateActions
+            Foundation.List.Folder.View.prototype.Initialize.call(this, options);
+            /*this.folders.itemsControl.Template = jQuery.templates(
+            '<li data-itemIndex="{{:#index}}">' +
+                '{{if HasChildren && Children}}' +
+                    '<span class="expander collapsed"></span><a {{if NavToken link=false}}href="{{:~Navigation.Main.Href(NavToken)}}" {{/if}}data-itemIndex="-1">{{:Name}}</a>{{if Locked}}<span class="lock"></span>{{/if}}' +
+                    '<ul id="subItems" style="display: none;"></ul>' +
+                '{{else}}<span class="expanderPlaceholder"></span><a {{if NavToken link=false}}href="{{:~Navigation.Main.Href(NavToken)}}" {{/if}}data-itemIndex="-1">{{:Name}}</a>{{if Locked}}<span class="lock"></span>{{/if}}{{/if}}' +
+            '</li>');*/
+
+            this.confirmLeave = this.joinLeaveAction.ConfirmLeave;
+            this.confirmLeave.Submit = function () {
+                if (Session.User.Id > 0 && $this._token.CommunityId > 0 && $this.ownType.CanLeave()) {
+                    Admin.Service.Community.Membership.LeaveCommunity($this._token.CommunityId, function (success) {
+                        $this.confirmLeave.SubmitComplete();
+                        if ($this.Community.Options.Open_To_View)
+                            Navigation.Main.Refresh();
+                        else
+                            Navigation.Community.ProfileView($this._token.CommunityId);
+                    }, jQuery.proxy($this.confirmLeave.Invalidate, $this.confirmLeave));
+                }
+            };
+
+            this.confirmMembership = this.joinLeaveAction.PopupForm();
+            this.confirmMembership_Request = this.confirmMembership.Content;
+            this.confirmMembership.Submit = function () {
+                var member = Session.User.Id;
+                if (member > 0) {
+                    var community = $this._token.CommunityId;
+                    var business = $this.Community.Owner.AccountType == Model.AccountType.Business ? $this.Community.Owner.Id : 0;
+                    var confirmMembership_Type = $this.confirmMembership_Request.Type;
+                    if (community > 0 && confirmMembership_Type > 0 && confirmMembership_Type != Model.Community.MemberType.Owner) {
+                        if (confirmMembership_Type == Model.Community.MemberType.Member && $this.Community.Options.Open_To_Join) {
+                            Admin.Service.Community.Membership.Join(community, business, function (success) {
+                                $this.confirmMembership.SubmitComplete();
+                                Navigation.Main.Refresh();
+                            }, jQuery.proxy($this.confirmMembership.Invalidate, $this.confirmMembership));
+                        }
+                        else {
+                            var request = {
+                                Community: community,
+                                Type: confirmMembership_Type
+                            };
+
+                            var requestMessage = $('#requestMessage', $this.confirmMembership.$container).val();
+                            if (!String.isNullOrWhiteSpace(requestMessage))
+                                request.Text = requestMessage;
+
+                            Admin.Service.Community.Membership.Request(request, function (success) {
+                                $this.confirmMembership.SubmitComplete();
+                                Navigation.Main.Refresh();
+                            }, jQuery.proxy($this.confirmMembership.Invalidate, $this.confirmMembership));
+                        }
+                        return;
+                    }
+                }
+                throw new Foundation.Exception.OperationException(Foundation.Exception.OperationException.Type.Invalid);
+            };
+            this.confirmMembership.Error = function (error, data) {
+                if (error == Foundation.ErrorMessageType.Data_DuplicateRecord)
+                    return String.format("@Resource.Global.Editor_Error_processing_request_X", String.format("@Resource.Community.Request_Exists", $this.confirmMembership.Content["Community"]));
+                else if (error == Foundation.ErrorMessageType.Operation_InvalidInteraction)
+                    return "@Resource.Community.Business_Mismatch_Moderator";
+            };
+        },
+
+        EvaluateActions: function (reset) {
+            this.ownType.Populate(this._token.CommunityId);
+            //need to delay EvaluateActions until Community is set as _joinAction depends on Community.Options
+            if (!this.Community) {
+                for (var i = 0; i < this.actionPanel.Actions.length; i++) {
+                    if (this.actionPanel.Actions[i].State() != Foundation.Controls.Action.State.Inactive)
+                        this.actionPanel.Actions[i].State(Foundation.Controls.Action.State.Inactive);
+                }
+            }
+            else {
+                Foundation.Page.prototype.EvaluateActions.call(this, reset);
+                this.checkAccess();
+            }
+        },
+
+        checkAccess: function () {
+            //Check for Post_Products and Open_To_View (or Membership)
+            if (!this.Community.Post_Products || !(this.Community.Options.Open_To_View || Session.User.Id > 0)) {
+                Navigation.Community.ProfileView(this._token.CommunityId);
+            }
+            else if (!this.Community.Options.Open_To_View) {
+                var $this = this;
+                Admin.Service.Community.Profile.IsMember(this._token.CommunityId, function (isMember) {
+                    if (!isMember) {
+                        Navigation.Community.ProfileView($this._token.CommunityId);
+                    }
+                });
+            }
+        },
+
+        AddActions: function () {
+            this.actionPanel.Add(this.joinLeaveAction);
+        },
+
+        ValidateRequest: function (token) {
+            if (token.CommunityId > 0 && token.Action == Model.Session.Action.CommunityProductsView) {
+                return token.CommunityCategoryId == 0 || String.isNullOrWhiteSpace(token.SearchQuery);
+            }
+            else
+                return false;
+        },
+
+        AutosetFolder: function (categories) {
+            if (!String.isNullOrWhiteSpace(this._token.SearchQuery) || !categories || !categories.length)
+                return Foundation.List.Folder.AutosetType.Special;
+            else
+                return Foundation.List.Folder.AutosetType.First;
+        },
+
+        GetCustomMessage: function (type) {
+            switch (type) {
+                case Foundation.List.Folder.MessageType.EmptyExplorer:
+                    return "@Resource.Community.Ads_Empty";
+                case Foundation.List.Folder.MessageType.SpecialFolderName:
+                    return "@Resource.Community.Ads_All";
+                default:
+                    return Foundation.List.Folder.View.prototype.GetCustomMessage.call(this, type);
+            }
+        },
+
+        prepareHeader: function (header) {
+            header = Foundation.List.Folder.View.prototype.prepareHeader.call(this, header);
+            if (this.Folder.Id > 0 && header.IsEmpty())
+                header.CustomTemplate = "CategoryEmptyHeaderTemplate";
+
+            return header;
+        },
+
+        ReflectTitle: function () {
+            if (this.Community && this.Folder) {
+                Foundation.Page.prototype.ReflectTitle.call(this, [(this.Folder.Id > 0 ? this.Folder.Name + "@Resource.Global.Page_TitleSeparator_1" : '') + this.Community.Name, String.format("@Resource.Global.X_Community_Ads", (this.Community.Owner.AccountType == Model.AccountType.Business ? this.Community.Owner.Name : "@Resource.Global.Adscroll"))]);
+            }
+        },
+
+        Load: function () {
+            var $this = this;
+            User.Service.Community.Profile.Get(this._token.CommunityId, function (community) {
+                Foundation.List.Folder.View.prototype.Load.call($this, $this._token.CommunityCategoryId, 0);
+
+                $this.Community = community;
+                $this.ReflectTitle();
+
+                $('.accountName').text(community.Owner.Name);
+                if (community.Owner.AccountType == Model.AccountType.Business)
+                    $('.businessAccount').show();
+                $('.communityName').text(community.Name);
+
+                $this.confirmLeave.Content["Community"] = community.Name;
+                $this.confirmMembership.Content["Community"] = community.Name;
+
+                if (community.Options.Open_To_Join)
+                    $this.confirmMembership_Request.Open_To_Join = true;
+
+                Foundation.Page.prototype.EvaluateActions.call($this, false); //Evaluate after Community is set as _joinLeaveAction depends on Community.Options
+                $this.checkAccess();
+
+                $('.asyncData').show();
+            }, jQuery.proxy(this.handleEntityFetchError, this));
+        },
+
+        GetFolderPath: function (category, callback) {
+            User.Service.Community.Category.GetPath(this._token.CommunityId, category, callback);
+        },
+
+        FolderChanged: function (category) {
+            if (this._token.CommunityCategoryId != category.Id) {
+                this._token.CommunityCategoryId = category.Id;
+                Navigation.Main.Reflect(this._token);
+            }
+            Foundation.List.Folder.View.prototype.FolderChanged.call(this, category);
+            this.ReflectTitle();
+        },
+
+        populateFolders: function (parentCategory, lookupCategory, callback) {
+            User.Service.Community.Category.GetCategories(this._token.CommunityId, parentCategory, lookupCategory, function (categories) {
+                callback(categories, parentCategory);
+            });
+        },
+
+        doSearch: function () {
+            if (this._token.CommunityCategoryId != 0)
+                this._token.CommunityCategoryId = 0;
+            return Foundation.List.Folder.View.prototype.doSearch.call(this);
+        },
+
+        fetchList: function (queryInput, callback, faultCallback) {
+            /*var $this = this;
+            var cb = function (queryOutput) {
+                if (queryOutput.Series && queryOutput.Properties) {
+                    if (queryOutput.Series.length == queryOutput.Properties.length)
+                        $this._properties = queryOutput.Properties;
+                    else
+                        throw new Foundation.Exception.OperationException(Foundation.Exception.OperationException.Type.UnexpectedState);
+                }
+                callback(queryOutput);
+            }*/
+            if (this.Folder.Id == 0) {
+                if (!String.isNullOrWhiteSpace(this._token.SearchQuery))
+                    queryInput.SearchQuery = this._token.SearchQuery;
+                User.Service.Community.Profile.GetProducts(this._token.CommunityId, Model.Community.Category.AllCategories, queryInput, callback/*cb*/, faultCallback);
+            }
+            else
+                User.Service.Community.Profile.GetProducts(this._token.CommunityId, this.Folder.Id, queryInput, callback/*cb*/, faultCallback);
+        },
+
+        fetchPage: function (page, callback, faultCallback) {
+            var $this = this;
+            User.Service.Product.Profile.ToPreview(page, this.List.View.OptionalColumns(), function (products) {
+                callback($this.preparePage(page, products));
+                /*callback($this.preparePage(page, products, $this._properties, function (product, property) {
+                    product.Date = property.Date;
+                    if (property.Text)
+                        product.Text = property.Text;
+                }));*/
+            }, faultCallback);
+        },
+
+        onCommand: function (command) {
+            switch (command) {
+                case "ViewAccount":
+                    switch (this.Community.Owner.AccountType) {
+                        case Model.AccountType.Business:
+                            Navigation.Business.ProfileView(this.Community.Owner.Id);
+                            break;
+                        case Model.AccountType.Personal:
+                            Navigation.Personal.ProfileView(this.Community.Owner.Id);
+                            break;
+                    }
+                    break;
+                case "ViewCommunity":
+                    Navigation.Community.ProfileView(this._token.CommunityId);
+                    break;
+                case "AllProducts":
+                    if (this.Folder.Id != 0)
+                        this.setFolder(0, '', Foundation.List.Folder.SetFolderOptions.ClearSearchQuery | Foundation.List.Folder.SetFolderOptions.ClearSelectedFolder);
+                    break;
+            }
+        }
+    }))();
+</script>}
+
+@section headerFrame {
+<table style="width:100%; margin-bottom:5px;">
+    <tr class="asyncData" style="display:none;">
+        <td style="text-align:left; padding-bottom:5px;">
+            <span class="businessAccount" style="display:none;"><a class="href accountName" data-command="ViewAccount"></a>&nbsp;&gt;&nbsp;@Resource.Dictionary.Communities&nbsp;&gt;&nbsp;</span><a class="href communityName" data-command="ViewCommunity"></a>&nbsp;&gt;&nbsp;@Resource.Dictionary.Ads<span data-link="visible{:~regularFolderVisibility(Folder.Type)}">&nbsp;&gt;&nbsp;<span class="folderName"></span></span>
+        </td>
+        <td id="ownType" rowspan="2" style="display:none; text-align:right; float:right; width:auto;">
+            @Resource.Dictionary.Member_type: <span id="text"></span>
+        </td>
+    </tr>
+    <tr>
+        <td colspan="2">
+            <table style="float:left;">
+                <tr>
+                    <td id="searchQuery" style="display:none; text-align:left; float:left; width:auto; padding-bottom:5px; padding-right:10px;">
+                        @Resource.Dictionary.Search
+                    </td>
+                    <td id="filterApplied" style="display:none; text-align:left; padding-bottom:5px;">
+                        @Resource.Dictionary.Filter
+                    </td>
+                </tr>
+            </table>
+        </td>
+    </tr>
+</table>}
+
+@section leftFrame {
+<div class="side left" style="margin-bottom:5px;">
+    <a class="href" data-command="AllProducts">@Resource.Product.Ads_All</a>
+</div>
+<div class="side left" style="margin-bottom:5px;" data-link="visible{:folders.Visible()}">
+    <span class="header">@Resource.Dictionary.Categories</span>
+    <div data-ctrl="Foundation.Controls.Folder.TreeList" id="folders"></div>
+</div>}
+
+<div class="form header" style="margin-bottom: 5px;" data-link="visible{:~visibilityFromString(Folder.Name)}"><span class="folderName"></span></div>
+<!--span class="form header folderName" style="margin-bottom: 5px;" data-link="visible{:~visibilityFromString(Folder.Name)}"></span-->

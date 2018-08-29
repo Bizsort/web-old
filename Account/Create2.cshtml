@@ -1,0 +1,72 @@
+﻿@{
+    Layout = "~/Account/_Create.cshtml";
+}
+
+@section head {
+<script type="text/javascript">
+    Geocoder = {};
+
+    Page = new (Account.Create.extend({
+        ctor: function () {
+            this.ApplicationPage = "/Account/Create2";
+            Account.Create.prototype.ctor.call(this);
+            this._admin = true;
+
+            this.ValidatorOptions.rules.securityProfile = "required";
+            /*{ required: true,
+                range: [1, 255] }*/
+            this.ValidatorOptions.messages.securityProfile = "@String.Format(Resource.Global.Editor_Error_Select_X, Resource.Dictionary.Security_profile)";
+        },
+
+        Load: function () {
+            Account.Create.prototype.Load.call(this);
+            var $this = this;
+            User.Service.Master.Dictionary.Get(Model.DictionaryType.SecurityProfile, function (securityProfiles) {
+                $this.SecurityProfiles = jQuery.map(securityProfiles, function(sp) {
+                    if (sp.ItemKey >= Model.SecurityProfile.Type.Medium)
+                        return sp;
+                });
+                var template = jQuery.templates('<option data-SecurityProfile="{{:ItemKey}}">{{:ItemText}}</option>')
+                $('#securityProfile', $this.$container).empty().append(template.render($this.SecurityProfiles)).prop('selectedIndex', -1);
+            });
+        },
+
+        Save: function (submit) {
+            if (Session.User.Id == 0 && this._token.Action == Model.Session.Action.AccountCreate) {
+                var email = $('#email', this.$container).val();
+                var password = $('#password', this.$container).val();
+                var name = $('#name', this.$container).val();
+                if (String.isNullOrWhiteSpace(name))
+                    name = null;
+
+                var securityProfile = 0;
+                var selectedIndex = $('#securityProfile', this.$container).prop('selectedIndex');
+                if (selectedIndex >= 0) {
+                    securityProfile = this.SecurityProfiles[selectedIndex].ItemKey;
+                }
+
+                var securityCode = $('#securityCode', this.$container).val();
+
+                var $this = this;
+                User.Service.Master.Account.Create_Admin(email, password, name, this.location.Text()/*this.$address*/, securityProfile, securityCode, function (success) {
+                    $this.SaveComplete(!success);
+                    if (success) {
+                        $this.$container.detach();
+                        $('#content').empty().append('<span id="successMessage" class="formSuccess">@Resource.Global.Editor_Error</span>');
+            }
+        }, jQuery.proxy(this.Invalidate, this));
+    }
+    else
+        throw new Foundation.Exception.OperationException(Foundation.Exception.OperationException.Type.Invalid);
+}
+}))();
+</script>}
+<tr>
+    <td class="label"><label for="securityProfile">@Resource.Dictionary.Security_profile</label></td>
+    <td class="value" style="width:155px;"><select id="securityProfile" name="securityProfile"></select></td>
+    <td colspan="2" rowspan="2"></td>
+</tr>
+<tr>
+    <td class="label"><label for="securityCode">@Resource.Dictionary.Security_code</label></td>
+    <td class="value" style="width:155px;"><input type="text" id="securityCode" name="securityCode"/></td>
+</tr>

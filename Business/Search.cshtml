@@ -1,0 +1,106 @@
+﻿@{
+    Page.Title = String.Format(Resource.Global.Page_TitleFormat, Resource.Business.Directory);
+    Layout = "~/_Search.cshtml";
+}
+
+@section head {
+<script src="~/JS/Common/Geocoder.js" type="text/javascript"></script>
+<script type="text/javascript">
+    Page = new (SearchView.extend({
+        ctor: function () {
+            this.ApplicationPage = "/Business/Search";
+            var listView = new Controls.Business.ListView();
+            SearchView.prototype.ctor.call(this, listView);
+            this.List.Entity = "@Resource.Dictionary.business_es";
+
+            $.views.helpers({
+                Navigation: Navigation
+            });
+
+            this.meta = { //For setTitle
+                keywords: ["@Resource.Dictionary.Businesses", "@Resource.Dictionary.Business"],
+                title: {
+                    Category_Location: "@Resource.Business.Businesses_in_Category_Location",
+                    Category: "@Resource.Business.Businesses_in_Category",
+                    Location: "@Resource.Business.Businesses_in_Location"
+                }
+            }
+        },
+
+        ValidateRequest: function (token) {
+            if (token.Action == Model.Session.Action.BusinessSearch && (token.CategoryId > 0 || !String.isNullOrWhiteSpace(token.SearchQuery))) {
+                return true;
+            }
+            else
+                return false;
+        },
+
+        Initialize: function (options) {
+            ReflectMenu(Navigation.Menu.MainItem.ItemType.Scroll, Navigation.Menu.SubItem.ItemType.Scroll_Businesses, true);
+            SearchView.prototype.Initialize.call(this, options);
+
+            if (this._token.CategoryId > 0) {
+                //this.List.View.Category(false);
+                var $this = this;
+                this.category.GroupSelected = function (category) {
+                    if (category.Id > 0)
+                        Navigation.Business.Search(category.Id, !String.isNullOrWhiteSpace($this._token.SearchQuery) ? $this._token.SearchQuery : undefined, Session.User.LocationId, $this._token.SearchNear);
+                    else {
+                        Session.User.CategoryId = 0;
+                        Navigation.Business.Home();
+                    }
+                };
+            }
+        },
+
+        doSearch: function () {
+            if (this._token.CategoryId > 0 || !String.isNullOrWhiteSpace(this._token.SearchQuery)) {
+                Navigation.Business.Search(this._token.CategoryId, !String.isNullOrWhiteSpace(this._token.SearchQuery) ? this._token.SearchQuery : undefined, this._token.LocationId, this._token.SearchNear);
+            }
+            else
+                Navigation.Business.Home();
+
+            return true;
+        },
+
+        fetchList: function (queryInput, callback, faultCallback) {
+            SearchView.prototype.fetchList.call(this, queryInput, callback, faultCallback, User.Service.Business.Profile.Search);
+        },
+
+        fetchPage: function (page, callback, faultCallback) {
+            if (this._distances) {
+                var $this = this;
+                User.Service.Business.Profile.ToPreview(page, function (businesses) {
+                    callback($this.preparePage(page, businesses, $this._distances, function (business, distance) {
+                        business.Distance = String.format("{0}km", distance);
+                    }));
+                }, faultCallback);
+            }
+            else
+                Business.ListView.prototype.fetchPage.call(this, page, callback, faultCallback);
+        }
+    }))();
+</script>}
+
+@section headerFrame {
+<table style="float:left; margin-bottom:5px;">
+    <tr>
+        <td style="padding-bottom:5px; display:none; ">
+            @Resource.Business.Category_Prefix&nbsp;<span class="groupPath" id="category"></span>
+        </td>
+    </tr>
+    <tr>
+        <td>
+            <table style="float:left;">
+                <tr>
+                    <td id="searchQuery" style="display:none; text-align:left; float:left; width:auto; padding-bottom:5px; padding-right:10px;">
+                        @Resource.Dictionary.Search
+                    </td>
+                    <td id="searchNear" style="display:none; text-align:left; float:left; width:auto; padding-bottom:5px;">
+                        @Resource.Dictionary.Near
+                    </td>
+                </tr>
+            </table>
+        </td>
+    </tr>
+</table>}

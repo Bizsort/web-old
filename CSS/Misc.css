@@ -1,0 +1,205 @@
+﻿/*.tipsy { padding: 5px; background-repeat: no-repeat;  background-image: url(../images/tipsy.gif); }
+.tipsy-inner { padding: 3px; border: 1px solid red; color: red; background-color: white; max-width: 200px; text-align: center; }
+.tipsy-inner { -moz-border-radius:3px; -webkit-border-radius:3px; }
+.tipsy-north { background-position: top center; }
+.tipsy-south { background-position: bottom center; }
+.tipsy-east { background-position: right center; }
+.tipsy-west { background-position: left center; }*/
+
+.tipsy { font-size: 12px; position: absolute; padding: 5px; z-index: 100000; }
+.tipsy-inner { border: 1px solid red; background-color: white; color: red; max-width: 200px; padding: 5px 8px 4px 8px; text-align: center; }
+
+/* Rounded corners */
+.tipsy-inner { border-radius: 3px; -moz-border-radius: 3px; -webkit-border-radius: 3px; }
+  
+/* Uncomment for shadow */
+/*.tipsy-inner { box-shadow: 0 0 5px #000000; -webkit-box-shadow: 0 0 5px #000000; -moz-box-shadow: 0 0 5px #000000; }*/
+  
+.tipsy-arrow { position: absolute; width: 0; height: 0; line-height: 0; border: 5px dashed red; }
+  
+/* Rules to colour arrows */
+.tipsy-arrow-n { border-bottom-color: red; }
+.tipsy-arrow-s { border-top-color: red; }
+.tipsy-arrow-e { border-left-color: red; }
+.tipsy-arrow-w { border-right-color: red; }
+  
+.tipsy-n .tipsy-arrow { top: 0px; left: 50%; margin-left: -5px; border-bottom-style: solid; border-top: none; border-left-color: transparent; border-right-color: transparent; }
+.tipsy-nw .tipsy-arrow { top: 0; left: 10px; border-bottom-style: solid; border-top: none; border-left-color: transparent; border-right-color: transparent;}
+.tipsy-ne .tipsy-arrow { top: 0; right: 10px; border-bottom-style: solid; border-top: none;  border-left-color: transparent; border-right-color: transparent;}
+.tipsy-s .tipsy-arrow { bottom: 0; left: 50%; margin-left: -5px; border-top-style: solid; border-bottom: none;  border-left-color: transparent; border-right-color: transparent; }
+.tipsy-sw .tipsy-arrow { bottom: 0; left: 10px; border-top-style: solid; border-bottom: none;  border-left-color: transparent; border-right-color: transparent; }
+.tipsy-se .tipsy-arrow { bottom: 0; right: 10px; border-top-style: solid; border-bottom: none; border-left-color: transparent; border-right-color: transparent; }
+.tipsy-e .tipsy-arrow { right: 0; top: 50%; margin-top: -5px; border-left-style: solid; border-right: none; border-top-color: transparent; border-bottom-color: transparent; }
+.tipsy-w .tipsy-arrow { left: 0; top: 50%; margin-top: -5px; border-right-style: solid; border-left: none; border-top-color: transparent; border-bottom-color: transparent; }
+
+.rateit {
+    display: -moz-inline-box;
+    display: inline-block;
+    position: relative;
+    -webkit-user-select: none;
+    -khtml-user-select: none;
+    -moz-user-select: none;
+    -o-user-select: none;
+    -ms-user-select: none;
+    user-select: none;
+    -webkit-touch-callout: none;
+}
+
+.rateit .rateit-range
+{
+    position: relative;
+    display: -moz-inline-box;
+    display: inline-block;
+    background: url(../images/rateitStar.gif);
+    height: 16px;
+    outline: none;
+}
+
+.rateit .rateit-range * {
+    display:block;
+}
+
+/* for IE 6 */
+* html .rateit, * html .rateit .rateit-range
+{
+    display: inline;
+}
+
+/* for IE 7 */
+* + html .rateit, * + html .rateit .rateit-range
+{
+    display: inline;
+}
+
+.rateit .rateit-hover, .rateit .rateit-selected
+{
+    position: absolute;
+    left: 0px;
+}
+
+.rateit .rateit-hover-rtl, .rateit .rateit-selected-rtl
+{
+    left: auto;
+    right: 0px;
+}
+
+.rateit .rateit-hover
+{
+    background: url(../images/rateitStar.gif) left -32px;
+}
+
+.rateit .rateit-hover-rtl
+{
+    background-position: right -32px;
+}
+
+.rateit .rateit-selected
+{
+    background: url(../images/rateitStar.gif) left -16px;
+}
+
+.rateit .rateit-selected-rtl
+{
+    background-position: right -16px;
+}
+
+.rateit .rateit-preset
+{
+    background: url(../images/rateitStar.gif) left -48px;
+}
+
+.rateit .rateit-preset-rtl
+{
+    background: url(../images/rateitStar.gif) left -48px;
+}
+
+.rateit button.rateit-reset
+{
+    background: url(../images/rateitDelete.gif) 0 0;
+    width: 16px;
+    height: 16px;
+    display: -moz-inline-box;
+    display: inline-block;
+    float: left;
+    outline: none;
+    border:none;
+    padding: 0;
+}
+
+.rateit button.rateit-reset:hover, .rateit button.rateit-reset:focus
+{
+    background-position: 0 -16px;
+}
+
+input:placeholder, textarea:placeholder,
+input:-moz-placeholder, textarea:-moz-placeholder,
+input::-webkit-input-placeholder,
+textarea::-webkit-input-placeholder {
+	color: #999999 !important;
+}
+
+table.fbButton
+{
+    border-spacing: 0px;
+    color:#fff; 
+    font-family:'lucida grande',tahoma,verdana,arial,sans-serif; 
+    font-size:0px; 
+    background-color: #5f78ab;
+    cursor:pointer; 
+}
+
+table.fbButton td
+{
+    vertical-align: top;
+    border: 1px solid #29447e;
+    border-bottom-color:#1a356e;
+    padding: 0;
+}
+
+table.fbButton td span
+{
+    display:inline-block; 
+    border-top:1px solid #879ac0; 
+    font-size:11px; 
+    font-weight:bold;
+    padding: 2px 6px 3px;
+}
+
+input.radio 
+{
+	display: inline;
+}
+
+.resize-grip
+{
+    overflow:hidden;
+	width:16px;
+	height:16px;
+    cursor:se-resize;
+	background-image:url('../images/resizeGrip.png');
+	position:absolute;
+    bottom:0;
+    right:0;
+    z-index:1;
+}
+
+.resize-cover
+{
+    z-index:2;
+	width:100%;
+	height:100%;
+    position:absolute;
+    top:0;
+    left:0;
+    bottom:0;
+    right:0;
+    /*opacity:.3; set programmatically*/
+    background-color:#efefef;
+}
+
+.resizing
+{
+	border-style:solid;
+	border-width:2px;
+	border-color:#7391BA;
+}

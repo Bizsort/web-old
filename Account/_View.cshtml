@@ -1,0 +1,103 @@
+﻿@{
+    Layout = "~/Layout/_ViewPanel.cshtml";
+}
+
+@section token {
+@RenderSection("token", required: false)}
+
+@section head {
+<script type="text/javascript">
+    System.Type.RegisterNamespace('Account');
+    Account.View = View.IAccount.extend({
+        ctor: function () {
+            View.IAccount.prototype.ctor.call(this);
+
+            this.address = new Controls.Address.View();
+            this.products = new Controls.Image.Slider();
+
+            this.profileTabs = new Foundation.Controls.Layout.TabControl();
+        },
+
+        Initialize: function (options) {
+            var $this = this;
+
+            this.address.Container = $('#address');
+
+            //Tabs
+            var productsTab = new Foundation.Controls.Layout.TabItem(this.products, {
+                bindVisible: true,
+                childCss: {
+                    'margin-left': 'auto',
+                    'margin-right': 'auto'
+                }
+            });
+            this.AddTabs(productsTab);
+
+            this.products.VisibleChanged(jQuery.proxy(this.ensureTabsVisible, this));
+            this.products.ItemCommand = function (product) {
+                Navigation.Product.View($this._token.AccountType, $this._token.AccountId, product.Id);
+            };
+
+            //Will call EvaluateActions
+            Foundation.Page.prototype.Initialize.call(this, options);
+        },
+
+        ensureTabsVisible: function () {
+            if (this.products.Visible()) {
+                if (!this.profileTabs.Visible())
+                    this.profileTabs.Visible(true);
+            }
+            else //if (this.profileTabs.Visible())
+                this.profileTabs.Visible(false);
+        },
+
+        ReflectUser: function () {
+            Foundation.Page.prototype.ReflectUser.call(this);
+            if (this.Account) { //has already been populated
+                if (this.message.$container)
+                    this.message.Reset();
+            }
+        },
+
+        AddActions: function () {
+            this.actionPanel.Add(this.messageAction);
+        },
+
+        populate: function (account) {
+            if (account) {
+                if (this._token.AccountId == account.Id && this._token.AccountType == account.AccountType) {
+                    this.Account = account;
+                    $('.name').text(account.Name);
+                    /*if (account.Location) {
+                        this.address.Populate(account.Location, this.address.Container);
+                        this.address.PlaceName = account.Name;
+                    }*/
+                    this.message.Populate(this, account);
+                    $('.asyncData').show();
+                    Foundation.Page.prototype.Load.call(this); //Set the loaded flag
+                    return;
+                }
+            }
+
+            Navigation.Main.Home();
+        },
+
+        onCommand: function (command) {
+            switch (command) {
+                case "ViewProducts":
+                    Navigation.Product.ListView(this._token.AccountType, this._token.AccountId);
+                    break;
+            }
+        }
+    });
+</script>
+@RenderSection("head", required: false)}
+
+@section context {
+@RenderSection("context", required: false)}
+
+@section centerFrame {
+@RenderSection("centerFrame", required: false)}
+
+@RenderBody()
+

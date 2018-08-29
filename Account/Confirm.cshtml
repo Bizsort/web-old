@@ -1,0 +1,91 @@
+﻿@{
+    Page.SessionRequiredNew = true;
+    Page.Title = String.Format(Resource.Global.Page_TitleFormat, Resource.Global.Account_Create);
+    Layout = "~/Layout/_CenterPanel.cshtml";
+
+    string error = null;
+    bool success = false;
+    try
+    {
+        Guid guid;
+        if (Request.QueryString.Count != 1 || 
+            !Guid.TryParse(Request.QueryString[0], out guid))
+        {
+            error = Resource.Global.Confirm_Error;
+        }
+        else
+        {
+            success = Service.Engine2.Client.ConfirmAccountCreate(guid, Request.UserHostAddress);
+        }
+    }
+    catch (Foundation.Exception.DataException ex)
+    {
+        error = (ex.Type == Foundation.Exception.DataExceptionType.RecordNotFound ? Resource.Global.Confirm_Request_NotFound : ex.Message);
+    }
+    catch (Foundation.Exception.OperationException ex)
+    {
+        error = (ex.Type == Foundation.Exception.OperationExceptionType.UnexpectedState ? Resource.Global.Account_Confirm_Error : ex.Message);
+    }
+    catch (Exception ex)
+    {
+        error = ex.Message;
+    }
+}
+
+@section token {
+<script type="text/javascript">
+    Session.Flags.SuppressAutoLogin = true;
+
+    Navigation.Main.GetToken = function (pageUri) {
+        return new Session.Navigation.Token(pageUri, Model.Session.Action.AccountConfirm);
+    };
+</script>}
+
+@section head {
+<script type="text/javascript">
+    Page = new (Foundation.Page.extend({
+
+        ReflectUser: function () {
+            if (Session.User.Id == 0)
+                Foundation.Page.prototype.ReflectUser.call(this);
+            else
+                Navigation.Main.Home();
+        },
+
+        ValidateRequest: function (token) {
+            if (Session.User.Id == 0 && token.Action == Model.Session.Action.AccountConfirm) {
+                return true;
+            }
+            else
+                return false;
+        },
+
+        Load: function () {
+            Foundation.Page.prototype.Load.call(this); //Set the loaded flag
+            @if (error == null)
+            {
+                if (success)
+                {                    
+                    <text>
+                        $("#successMessage").show();
+                    </text>
+                }
+                else
+                {
+                    <text>
+                        $("#successMessage").text("@Resource.Global.Confirm_Repeat").show();
+                    </text>
+                }                        
+            }
+            else
+            {
+                <text>
+                    $("#errorMessage").show();
+                </text>
+            }
+        }
+    }))();
+</script>}
+<span id="errorMessage" class="formError" style="display:none;">@String.Format(Resource.Global.Editor_Error_processing_request_X, error)</span>
+<span id="successMessage" class="formSuccess" style="display:none;">@Resource.Global.Account_Confirm_Success</span>
+

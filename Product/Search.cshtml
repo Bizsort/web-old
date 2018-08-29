@@ -1,0 +1,113 @@
+﻿@{
+    Page.Title = String.Format(Resource.Global.Page_TitleFormat, Resource.Dictionary.Products);
+    Layout = "~/_Search.cshtml";
+}
+
+@section head {
+<script type="text/javascript">
+    Page = new (SearchView.extend({
+        ctor: function () {
+            this.ApplicationPage = "/Product/Search";
+            this.filterAvail = new Foundation.Controls.List.Filter.Available();
+            this.filterApplied = new Foundation.Controls.List.Filter.Applied();
+            var listView = new Controls.Product.ListView();
+            listView.Account(true);
+            SearchView.prototype.ctor.call(this, listView);
+            this.KnownFacetNames = User.Service.Product.Profile.FacetNames;
+            this.List.Entity = "@Resource.Dictionary.product_s";
+
+            $.views.helpers({
+                dateFormatter: Foundation.ValueConverter.DateFormatter,
+                Navigation: Navigation
+            });
+
+            this.meta = { //For setTitle
+                keywords: ["@Resource.Dictionary.Products", "@Resource.Product.Ads", "@Resource.Dictionary.Ad"],
+                title: {
+                    Category_Location: "@Resource.Product.Ads_in_Category_Location",
+                    Category: "@Resource.Product.Ads_in_Category",
+                    Location: "@Resource.Product.Ads_in_Location"
+                }
+            }
+        },
+
+        ValidateRequest: function (token) {
+            if (token.Action == Model.Session.Action.ProductSearch && (token.CategoryId > 0 || !String.isNullOrWhiteSpace(token.SearchQuery))) {
+                return true;
+            }
+            else
+                return false;
+        },
+
+        Initialize: function (options) {
+            ReflectMenu(Navigation.Menu.MainItem.ItemType.Scroll, Navigation.Menu.SubItem.ItemType.Scroll_Products, true);
+            SearchView.prototype.Initialize.call(this, options);
+
+            if (this._token.CategoryId > 0) {
+                //this.List.View.Category(false);
+                var $this = this;
+                this.category.GroupSelected = function (category) {
+                    if (category.Id > 0)
+                        Navigation.Product.Search(0, category.Id, !String.isNullOrWhiteSpace($this._token.SearchQuery) ? $this._token.SearchQuery : undefined, Session.User.LocationId, $this._token.SearchNear);
+                    else {
+                        Session.User.CategoryId = 0;
+                        Navigation.Product.Home();
+                    }
+                };
+            }
+        },
+
+        doSearch: function () {
+            if (this._token.CategoryId > 0 || !String.isNullOrWhiteSpace(this._token.SearchQuery)) {
+                Navigation.Product.Search(0, this._token.CategoryId, !String.isNullOrWhiteSpace(this._token.SearchQuery) ? this._token.SearchQuery : undefined, this._token.LocationId, this._token.SearchNear);
+            }
+            else
+                Navigation.Product.Home();
+
+            return true;
+        },
+
+        fetchList: function (queryInput, callback, faultCallback) {
+            SearchView.prototype.fetchList.call(this, queryInput, callback, faultCallback, User.Service.Product.Profile.Search);
+        },
+
+        fetchPage: function (page, callback, faultCallback) {
+            if (this._distances) {
+                var $this = this;
+                User.Service.Product.Profile.ToPreview(page, this.List.View.OptionalColumns(), function (products) {
+                    callback($this.preparePage(page, products, $this._distances, function (product, distance) {
+                        product.Distance = String.format("{0}km", distance);
+                    }));
+                }, faultCallback);
+            }
+            else
+                Product.ListView.prototype.fetchPage.call(this, page, callback, faultCallback);
+        }
+    }))();
+</script>}
+
+@section headerFrame {
+<table style="float:left; margin-bottom:5px;">
+    <tr>
+        <td style="padding-bottom:5px; display:none; ">
+            @Resource.Product.Category_Prefix&nbsp;<span class="groupPath" id="category"></span>&nbsp;[<a class="href">@Resource.Global.Category_Post_Here</a>]
+        </td>
+    </tr>
+    <tr>
+        <td>
+            <table style="float:left;">
+                <tr>
+                    <td id="searchQuery" style="display:none; text-align:left; float:left; width:auto; padding-bottom:5px; padding-right:10px;">
+                        @Resource.Dictionary.Search
+                    </td>
+                    <td id="searchNear" style="display:none; text-align:left; float:left; width:auto; padding-bottom:5px; padding-right:10px;">
+                        @Resource.Dictionary.Near
+                    </td>
+                    <td id="filterApplied" style="display:none; text-align:left; float:left; padding-bottom:5px;">
+                        @Resource.Dictionary.Filter
+                    </td>
+                </tr>
+            </table>
+        </td>
+    </tr>
+</table>}

@@ -1,0 +1,62 @@
+﻿@{
+    Page.Title = String.Format(Resource.Global.Page_TitleFormat, String.Format(Resource.Action.Search_in_X, Resource.Business.Directory));
+    Layout = "~/_Home.cshtml";
+}
+
+@section head {
+<!--meta name="robots" content="noindex, follow" /-->
+<link rel="canonical" href="/business/home" />
+<script type="text/javascript">
+    Page = new (HomePage.extend({
+        ctor: function () {
+            this.ApplicationPage = "/Business/Home";
+            HomePage.prototype.ctor.call(this);
+        },
+
+        NavToken: function () {
+            return Navigation.Business.Search(Session.User.CategoryId, null, Session.User.LocationId, null, { suppressNavigate: true });
+        },
+
+        Initialize: function (options) {
+            ReflectMenu(Navigation.Menu.MainItem.ItemType.Scroll, Navigation.Menu.SubItem.ItemType.Scroll_Businesses);
+            HomePage.prototype.Initialize.call(this, options);
+        },
+
+        doSearch: function () {
+            var searchQuery;
+            if (!String.isNullOrWhiteSpace(this._token.SearchQuery)) {
+                searchQuery = this._token.SearchQuery;
+            }
+            else if (Session.User.CategoryId == 0)
+                return false;
+
+            if (this.locationTabs.SelectedIndex() == 0 || String.isNullOrWhiteSpace(this.searchNear.Text())) {
+                Navigation.Business.Search(Session.User.CategoryId, searchQuery, Session.User.LocationId);
+            }
+            else {
+                var $this = this;
+                this.searchNear.ValidateStep(function (valid) {
+                    if (valid && $this.searchNear.Geolocation && $this.searchNear.Geolocation.Lat != 0 && $this.searchNear.Geolocation.Lng != 0)
+                        Navigation.Business.Search(Session.User.CategoryId, searchQuery, 0, { Text: $this.searchNear.Text(), Lat: $this.searchNear.Geolocation.Lat, Lng: $this.searchNear.Geolocation.Lng });
+                });
+            }
+
+            return true;
+        }
+    }))();
+</script>}
+<br/>
+<table class="search form" style="width: 600px;">
+    <tr>
+        <th style="padding-bottom: 20px"><h3>@String.Format(Resource.Action.Search_in_X, Resource.Business.Directory)</h3></th>
+    </tr>
+    <tr>
+        <td id="category" style="padding-bottom: 15px">@Resource.Dictionary.Category&nbsp;</td>
+    </tr>
+    <tr>
+        <td>
+            <div class="tabControl" style="display:none; margin-bottom: 15px; min-width:500px;" id="locationTabs"></div>
+        </td>
+    </tr>
+</table>
+

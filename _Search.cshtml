@@ -1,0 +1,138 @@
+﻿@{
+    Page.MicrodataItemType = "http://schema.org/ItemList";
+    Layout = "~/Layout/_LCRPanel.cshtml";
+}
+
+@section head {
+<script type="text/javascript">
+    SearchView = Foundation.List.Filter.View.extend({
+        ctor: function (listView) {
+            Foundation.List.Filter.View.prototype.ctor.call(this, listView);
+            this.Pager.FetchLimit = 5000;
+            this.searchLocation = new Controls.Location.Current();
+            this.searchBox = new Foundation.Controls.Search.TextBox();
+            this.searchQuery = new Foundation.Controls.Search.Context();
+            this.searchNear = new Foundation.Controls.Search.Context();
+        },
+
+        Initialize: function (options) {
+            var $this = this;
+            this.searchLocation.Populated = function (l) {
+                $this.setTitle();
+            }
+            Foundation.List.Filter.View.prototype.Initialize.call(this, options); //Will trigger searchLocation.Populate and may raise Populated
+
+            if (this._token.CategoryId > 0) {
+                if (String.isNullOrWhiteSpace(this._token.SearchQuery))
+                    this.List.EmptyHeaderTemplate.Format("@Resource.Global.Category_Header_EmptyFormat");
+
+                this.category = new Foundation.Controls.Group.Path(User.Service.Master.Category, {
+                    Id: 0,
+                    Name: "@Resource.Dictionary.Categories"
+                });
+                this.category.CanSelectCurrent = false;
+
+                this.category.Populated = function (c) {
+                    $this.setTitle(); //document.title = String.format("@Resource.Global.Page_TitleFormat2", c.Name, "@Resource.Business.Directory");
+                    $('#category').parent('td').show();
+                    $this.searchBox.Prompt(String.format("@Resource.Action.Search_in_X", c.Name));
+                };
+
+                this.category.Populate(this._token.CategoryId, $('#category'));
+            }
+            else {
+                this.List.HeaderTemplate.Format("@Resource.Global.Search_Header_Format");
+                this.List.EmptyHeaderTemplate.Format("@Resource.Global.Search_Header_EmptyFormat");
+            }
+
+            if (this.searchNear) {
+                if (!this.searchNear.$container)
+                    this.searchNear.Initialize($('#searchNear'));
+
+                if (this._token.SearchNear && !String.isNullOrWhiteSpace(this._token.SearchNear.Text)) {
+                    this.searchNear.Text(this._token.SearchNear.Text);
+                    $('#searchNear').show();
+                }
+
+                this.searchNear.Reset = function () {
+                    $this._token.SearchNear = undefined;
+                    $('#searchNear').hide();
+                    $this.doSearch();
+                };
+            }
+
+            if (this._token.SearchNear)
+                this.List.View.Distance(true);
+        },
+
+        setTitle: function () {
+            var keywords = this.meta.keywords.slice();
+            var category = this.category && this.category.Items && this.category.Items.length ? this.category.Items[this.category.Items.length - 1] : null;
+            if (category && category.Id)
+                category = category.Name;
+            else if (!String.isNullOrWhiteSpace(this._token.SearchQuery))
+                category = this._token.SearchQuery;
+            else
+                category = null;
+            var location = this.searchLocation.Item && this.searchLocation.$select.Parents ? this.searchLocation.Item : null;
+            if (location && location.Id)
+                location = location.Name
+            else
+                location = null;
+            if (category && location) {
+                document.title = String.format("@Resource.Global.Page_TitleFormat", String.format(this.meta.title.Category_Location, category, location));
+                keywords.push(category);
+                keywords.push(location);
+            }
+            else if (category) {
+                document.title = String.format("@Resource.Global.Page_TitleFormat", String.format(this.meta.title.Category, category));
+                keywords.push(category);
+            }
+            else if (location && location.Id) {
+                document.title = String.format("@Resource.Global.Page_TitleFormat", String.format(this.meta.title.Location, location));
+                keywords.push(location);
+            }
+            metaKeywords(keywords.join(' '));
+        },
+
+        onLocationChange: function () {
+            if (this._token.LocationId != Session.User.LocationId) {
+                this._token.LocationId = Session.User.LocationId;
+                if (!this._token.SearchNear)
+                    return this.doSearch();
+            }
+
+            return false;
+        },
+
+        fetchList: function (queryInput, callback, faultCallback, fetchDelegate) {
+            if (this._distances)
+                delete this._distances;
+            queryInput.Category = this._token.CategoryId;
+            if (!String.isNullOrWhiteSpace(this._token.SearchQuery))
+                queryInput.SearchQuery = this._token.SearchQuery;
+
+            if (this._token.SearchNear) {
+                var $this = this;
+                queryInput.SearchNear = { Lat: this._token.SearchNear.Lat, Lng: this._token.SearchNear.Lng };
+                fetchDelegate(queryInput, function (queryOutput) {
+                    if (queryOutput.Series && queryOutput.Distances) {
+                        if (queryOutput.Series.length == queryOutput.Distances.length)
+                            $this._distances = queryOutput.Distances;
+                        else
+                            throw new Foundation.Exception.OperationException(Foundation.Exception.OperationException.Type.UnexpectedState);
+                    }
+                    callback(queryOutput);
+                }, faultCallback);
+            }
+            else {
+                queryInput.Location = this._token.LocationId;
+                fetchDelegate(queryInput, callback, faultCallback);
+            }
+        }
+    });
+</script>
+@RenderSection("head", required: false)}
+@section headerFrame {
+@RenderSection("headerFrame", required: false)}
+@RenderBody()

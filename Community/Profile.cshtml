@@ -1,0 +1,386 @@
+﻿@{
+    Page.Title = String.Format(Resource.Global.Page_TitleFormat, Resource.Community.Directory);
+    Page.MicrodataItemType = "http://schema.org/Place";
+    Layout = "~/Layout/_ViewPanel.cshtml";
+}
+
+@section head {
+<script type="text/javascript">
+    Page = new (Foundation.Page.extend({
+        ctor: function () {
+            Foundation.Page.prototype.ctor.call(this);
+            this.ApplicationPage = "/Community/Profile";
+            this.image = new Controls.Image.FlipView();
+            this.ownType = new Controls.Community.Member.OwnType();
+            this.actionPanel = new Controls.Action.Panel();
+            this.joinLeaveAction = new Controls.Action.JoinLeaveCommunity();
+            this.joinLeaveAction.CanLeave = this.ownType.CanLeave();
+            this.address = new Controls.Address.View();
+            this.profileTabs = new Foundation.Controls.Layout.TabControl();
+            this.topics = new Controls.Image.Slider();
+            this.topics.PageSize(5);
+            this.topics.ShowEmpty = true;
+            this.products = new Controls.Image.Slider();
+            this.moderators = new Controls.Image.List();
+
+            $.views.helpers({
+                Navigation: Navigation
+            });
+        },
+
+        Initialize: function (options) {
+            ReflectMenu(Navigation.Menu.MainItem.ItemType.Scroll, Navigation.Menu.SubItem.ItemType.Scroll_Communities, true);
+
+            var $this = this;
+            this.joinLeaveAction.StateOverride = function (joinLeave, state) {
+                if (state == Foundation.Controls.Action.State.Active) {
+                    if (Session.User.Id > 0 && $this.Community) {
+                        Admin.Service.Community.Membership.Exists($this._token.CommunityId, function (exists) {
+                            if (exists == Admin.Service.Community.Membership.Type.None)
+                                joinLeave.State(Foundation.Controls.Action.State.Active);
+                            else if ((exists & Admin.Service.Community.Membership.Type.Membership) == 0)
+                                joinLeave.State(Foundation.Controls.Action.State.Inactive);
+                            else {
+                                joinLeave.State(Foundation.Controls.Action.State.Active);
+                                joinLeave.Exercised(true);
+                            }
+                        });
+                    }
+                    else
+                        joinLeave.State(Foundation.Controls.Action.State.Inactive);
+                }
+                else if (joinLeave.State() != state)
+                    joinLeave.State(state);
+            };
+
+            this.ownType.Initialize($('#ownType'));
+            this.ownType.ValueChanged = function () {
+                $.observable($this.joinLeaveAction).setProperty('CanLeave', $this.ownType.CanLeave());
+                //Need to check for Open_To_View (or Membership) and Post_Products and Show or Hide Topics and Products accordingly
+                $this.populateTopicsAndProducts();
+            };
+
+            //Will call EvaluateActions
+            Foundation.Page.prototype.Initialize.call(this, options);
+
+            this.AddTabs();
+
+            this.address.Container = $('#address');
+
+            this.topics.VisibleChanged(jQuery.proxy(this.ensureTabsVisible, this));
+            this.topics.ItemCommand = function (topic) {
+                Navigation.Community.TopicPostsView($this._token.CommunityId, topic.Id);
+            };
+
+            this.products.VisibleChanged(jQuery.proxy(this.ensureTabsVisible, this));
+            this.products.ItemCommand = function (product) {
+                Navigation.Product.View(product.AccountType, product.Account, product.Id);
+            };
+
+            this.moderators.VisibleChanged(jQuery.proxy(this.ensureTabsVisible, this));
+            this.moderators.ItemCommand = function (moderator) {
+                Navigation.Personal.ProfileView(moderator.Id);
+            };
+
+            this.confirmLeave = this.joinLeaveAction.ConfirmLeave;
+            this.confirmLeave.Submit = function () {
+                if (Session.User.Id > 0 && $this._token.CommunityId > 0 && $this.ownType.CanLeave()) {
+                    Admin.Service.Community.Membership.LeaveCommunity($this._token.CommunityId, function (success) {
+                        $this.confirmLeave.SubmitComplete();
+                        Navigation.Main.Refresh();
+                    }, jQuery.proxy($this.confirmLeave.Invalidate, $this.confirmLeave));
+                }
+            };
+
+            this.confirmMembership = this.joinLeaveAction.PopupForm();
+            this.confirmMembership_Request = this.confirmMembership.Content;
+            this.confirmMembership.Submit = function () {
+                var member = Session.User.Id;
+                if (member > 0) {
+                    var community = $this._token.CommunityId;
+                    var business = $this.Community.Owner.AccountType == Model.AccountType.Business ? $this.Community.Owner.Id : 0;
+                    var confirmMembership_Type = $this.confirmMembership_Request.Type;
+                    if (community > 0 && confirmMembership_Type > 0 && confirmMembership_Type != Model.Community.MemberType.Owner) {
+                        if (confirmMembership_Type == Model.Community.MemberType.Member && $this.Community.Options.Open_To_Join) {
+                            Admin.Service.Community.Membership.Join(community, business, function (success) {
+                                $this.confirmMembership.SubmitComplete();
+                                Navigation.Main.Refresh();
+                            }, jQuery.proxy($this.confirmMembership.Invalidate, $this.confirmMembership));
+                        }
+                        else {
+                            var request = {
+                                Community: community,
+                                Type: confirmMembership_Type
+                            };
+
+                            var requestMessage = $('#requestMessage', $this.confirmMembership.$container).val();
+                            if (!String.isNullOrWhiteSpace(requestMessage))
+                                request.Text = requestMessage;
+
+                            Admin.Service.Community.Membership.Request(request, function (success) {
+                                $this.confirmMembership.SubmitComplete();
+                                Navigation.Main.Refresh();
+                            }, jQuery.proxy($this.confirmMembership.Invalidate, $this.confirmMembership));
+                        }
+                        return;
+                    }
+                }
+                throw new Foundation.Exception.OperationException(Foundation.Exception.OperationException.Type.Invalid);
+            };
+            this.confirmMembership.Error = function (error, data) {
+                if (error == Foundation.ErrorMessageType.Data_DuplicateRecord)
+                    return String.format("@Resource.Global.Editor_Error_processing_request_X", String.format("@Resource.Community.Request_Exists", $this.confirmMembership.Content["Community"]));
+                else if (error == Foundation.ErrorMessageType.Operation_InvalidInteraction)
+                    return "@Resource.Community.Business_Mismatch_Moderator";
+            };
+        },
+
+        EvaluateActions: function (reset) {
+            this.ownType.Populate(this._token.CommunityId);
+            //need to delay EvaluateActions until Community is set as _joinAction depends on Community.Options
+            if (!this.Community) {
+                for (var i = 0, l = this.actionPanel.Actions.length; i < l; i++) {
+                    if (this.actionPanel.Actions[i].State() != Foundation.Controls.Action.State.Inactive)
+                        this.actionPanel.Actions[i].State(Foundation.Controls.Action.State.Inactive);
+                }
+            }
+            else {
+                Foundation.Page.prototype.EvaluateActions.call(this, reset);
+            }
+        },
+
+        ensureTabsVisible: function () {
+            var selectedIndex = -1;
+            if (this.descriptionTab.Visible()) {
+                selectedIndex = 0;
+            }
+            else if (this.products.Visible()) {
+                selectedIndex = 1;
+            }
+            else if (this.products.Visible()) {
+                selectedIndex = 2;
+            }
+            else if (this.moderators.Visible()) {
+                selectedIndex = 3;
+            }
+
+            if (selectedIndex >= 0) {
+                if (!this.profileTabs.Visible())
+                    this.profileTabs.Visible(true);
+                if (this.profileTabs.SelectedIndex() != selectedIndex)
+                    this.profileTabs.SelectedIndex(selectedIndex);
+            }
+            else //if (this.profileTabs.Visible())
+                this.profileTabs.Visible(false);
+        },
+
+        AddActions: function () {
+            this.actionPanel.Add(this.joinLeaveAction);
+        },
+
+        AddTabs: function () {
+            this.profileTabs.Initialize($('#bodyFrame'));
+            this.profileTabs.$container.addClass("subtle");
+
+            this.descriptionTab = new Foundation.Controls.Layout.TabItem($('<div style="vertical-align:top;" id="description" itemprop="description"></div>'), {
+                visible: false
+            });
+            this.descriptionTab.Header = "<span>@Resource.Dictionary.Description</span>";
+            this.profileTabs.AddTab(this.descriptionTab);
+
+            var topicsTab = new Foundation.Controls.Layout.TabItem(this.topics, {
+                bindVisible: true,
+                childCss: {
+                    'margin-left': 'auto',
+                    'margin-right': 'auto'
+                }
+            });
+            topicsTab.Header = "<span>@Resource.Dictionary.Forums</span><span style=\"display: none;\">&nbsp;[<a class=\"href\" data-command=\"ViewTopics\">@Resource.Action.View</a>]</span>";
+            topicsTab.Selected = function (selected) {
+                Foundation.Controls.Layout.TabItem.prototype.Selected.call(this, selected);
+                if (selected)
+                    $('span', this.Header).slice(1).show();
+                else
+                    $('span', this.Header).slice(1).hide();
+            }
+            this.profileTabs.AddTab(topicsTab);
+
+            var productsTab = new Foundation.Controls.Layout.TabItem(this.products, {
+                bindVisible: true,
+                childCss: {
+                    'margin-left': 'auto',
+                    'margin-right': 'auto'
+                }
+            });
+            productsTab.Header = "<span>@Resource.Dictionary.Ads</span><span style=\"display: none;\">&nbsp;[<a class=\"href\" data-command=\"ViewProducts\">@Resource.Action.View</a>]</span>";
+            productsTab.Selected = function (selected) {
+                Foundation.Controls.Layout.TabItem.prototype.Selected.call(this, selected);
+                if (selected)
+                    $('span', this.Header).slice(1).show();
+                else
+                    $('span', this.Header).slice(1).hide();
+            }
+            this.profileTabs.AddTab(productsTab);
+
+            var moderatorsTab = new Foundation.Controls.Layout.TabItem(this.moderators, {
+                bindVisible: true,
+                childCss: {
+                    'margin-left': 'auto',
+                    'margin-right': 'auto'
+                }
+            });
+            moderatorsTab.Header = "<span>@Resource.Dictionary.Moderators</span>";
+            this.profileTabs.AddTab(moderatorsTab);
+        },
+
+        ValidateRequest: function (token) {
+            if (token.CommunityId > 0 && token.Action == Model.Session.Action.CommunityProfileView) {
+                return true;
+            }
+            else
+                return false;
+        },
+
+        populateTopicsAndProducts: function () {
+            if (!this.Community || !this.topics.$container || !this.products.$container)
+                return;
+
+            if (this.Community.Options.Open_To_View || this.ownType.IsMember()) {
+                if (!this.topics.Items)
+                    this.topics.Populate(User.Service.Community.Topic.GetThumbnails(this._token.CommunityId));
+            }
+            else if (this.topics.Items || this.topics.Visible()) {
+                this.topics.setItems();
+                this.topics.Visible(false);
+            }
+
+            if (this.Community.Options.Post_Products && (this.Community.Options.Open_To_View || this.ownType.IsMember())) {
+                if (!this.products.Items)
+                    this.products.Populate(User.Service.Community.Product.GetThumbnails(this._token.CommunityId));
+            }
+            else if (this.products.Items || this.products.Visible()) {
+                this.products.setItems();
+                this.products.Visible(false);
+            }
+        },
+
+        Load: function () {
+            var $this = this;
+            User.Service.Community.Profile.View(this._token.CommunityId, function (community) {
+                if (community) {
+                    Foundation.Page.prototype.ReflectTitle.call($this, [community.Name, String.format("@Resource.Global.X_Communities", (community.Owner.AccountType == Model.AccountType.Business ? community.Owner.Name : "@Resource.Global.Adscroll"))]);
+                    $this.Community = community;
+
+                    $('.accountName').text(community.Owner.Name);
+                    if (community.Owner.AccountType == Model.AccountType.Business)
+                        $('.businessAccount').show();
+                    $('.name').text(community.Name);
+                    $('#id').text(community.Id);
+
+                    if (community.Owner.AccountType == Model.AccountType.Business) {
+                        var a = $('<a class="href" href="' + Navigation.Main.Href(Navigation.Business.ProfileView(community.Owner.Id, { suppressNavigate: true })) + '" data-command="ViewBusiness" data-commandParam="' + community.Owner.Id + '">' + community.Owner.Name + '</a>');
+                        $('#businessName').append(a).css('border-bottom-color', 'transparent').parent('tr').show();
+
+                        if (community.Owner.Image /*community.Owner.Image.HasImage*/) {  @*User.Data.Community.Profile.View: Without imageId we can only fetch icon as a default image (Order == 0) otherwise will get DataExceptionType.RecordNotFound*@
+                            img = $('<img src="' + community.Owner.Image.ImageRef + '"/>');
+                            $('#businessImage').append(img).parent('tr').show();
+                        }
+                    }
+
+                    $this.confirmLeave.Content["Community"] = community.Name;
+                    $this.confirmMembership.Content["Community"] = community.Name;
+
+                    if (community.Options.Open_To_Join)
+                        $this.confirmMembership_Request.Open_To_Join = true;
+                    if (community.Options.Post_Products)
+                        $this.confirmMembership_Request.Post_Products(true);
+
+                    if (community.Images)
+                        $this.image.Populate(community.Images, $('#image'));
+
+                    if (community.Location) {
+                        $this.address.Populate(community.Location, $this.address.Container);
+                        $this.address.PlaceName = community.Name;
+                    }
+
+                    if (!String.isNullOrEmpty(community.RichText)) {
+                        $('#description').html(community.RichText);
+                        $this.descriptionTab.Visible(true);
+                        $this.ensureTabsVisible();
+
+                        metaDescription(community.Text);
+                    }
+
+                    //Need to check for Open_To_View (or Membership) and Post_Products and Show or Hide Topics and Products accordingly
+                    $this.populateTopicsAndProducts();
+
+                    $this.moderators.Populate(community.Moderators);
+
+                    Foundation.Page.prototype.EvaluateActions.call($this, false); //Evaluate after Community is set as _joinLeaveAction depends on Community.Options
+
+                    $('.asyncData').show();
+
+                    Foundation.Page.prototype.Load.call($this); //Set the loaded flag
+                }
+                else
+                    Navigation.Main.Home();
+            }, jQuery.proxy(this.handleEntityFetchError, this));
+        },
+
+        onCommand: function (command, param) {
+            switch (command) {
+                case "ViewAccount":
+                    switch (this.Community.Owner.AccountType) {
+                        case Model.AccountType.Business:
+                            Navigation.Business.ProfileView(this.Community.Owner.Id);
+                            break;
+                        case Model.AccountType.Personal:
+                            Navigation.Personal.ProfileView(this.Community.Owner.Id);
+                            break;
+                    }
+                    break;
+                case "ViewBusiness":
+                    if (param) {
+                        var businessId = parseInt(param);
+                        if (!isNaN(businessId))
+                            Navigation.Business.ProfileView(businessId);
+                    }
+                    break;
+                case "ViewProducts":
+                    if (this.Community.Options.Post_Products)
+                        Navigation.Community.ProductsView(this._token.CommunityId);
+                    break;
+                case "ViewTopics":
+                    Navigation.Community.TopicsView(this._token.CommunityId);
+                    break;
+            }
+        }
+    }))();
+</script>}
+
+@section context {
+<table style="width:100%; margin-bottom:5px;">
+    <tr class="asyncData" style="display:none;">
+        <td style="text-align:left; padding-bottom:5px;">
+            <span class="businessAccount" style="display:none;"><a class="href accountName" data-command="ViewAccount"></a>&nbsp;&gt;&nbsp;@Resource.Dictionary.Communities&nbsp;&gt;&nbsp;<span class="name"></span></span>
+        </td>
+        <td style="text-align:right; float:right; width:auto;">
+            @Resource.Dictionary.Id:&nbsp;<span id="id"></span>
+            <span id="ownType" style="display:none;">
+                @Resource.Dictionary.Member_type: <span id="text"></span>
+            </span>
+        </td>
+    </tr>
+</table>}
+
+@section centerFrame {
+<table class="attributes" id="profileAttributes">
+    <tr style="display:none;">
+        <td rowspan="2" class="label" style="vertical-align:top;">@Resource.Dictionary.Business</td>
+        <td class="value" id="businessName"></td>
+    </tr>
+    <tr style="display:none;">
+        <td class="value" id="businessImage" style="border-top-color: transparent;"></td>
+    </tr>
+    <tr id="address" style="display:none;" itemprop="address" itemscope itemtype="http://schema.org/PostalAddress"></tr>
+</table>}

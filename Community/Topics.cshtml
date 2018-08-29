@@ -1,0 +1,456 @@
+﻿@{
+    Page.Title = String.Format(Resource.Global.Page_TitleFormat, Resource.Community.Directory);
+    Page.MicrodataItemType = "http://schema.org/Blog";
+    Layout = "~/Layout/_LCRPanel.cshtml";
+}
+
+@section head {
+<script type="text/javascript">
+    Page = new (Foundation.List.Folder.View.extend({
+        ctor: function () {
+            this.ApplicationPage = "/Community/Topics";
+            this.blogTitle = "@Resource.Dictionary.Blog";
+            this.searchLocation = new Controls.Location.Current();
+            this.searchBox = new Foundation.Controls.Search.TextBox_Option();
+            this.searchBox.Prompt("@Resource.Community.Search_Topics");
+            this.searchBox.OptionText("@Resource.Global.Search_Include_posts");
+            this.searchBox.OptionChecked(true);
+            this.searchQuery = new Foundation.Controls.Search.Context();
+            var listView = new Controls.Community.Topic.ListView();
+            Foundation.List.Folder.View.prototype.ctor.call(this, listView);
+            this.List.Entity = "@Resource.Dictionary.topic_s";
+            this.List.ForumEmptyHeaderTemplate = Foundation.Controls.List.Header.Template("@Resource.Global.Forum_X_Empty", Foundation.Controls.List.Header.Formatter, "{{:Folder}}");
+
+            this.ownType = new Controls.Community.Member.OwnType();
+            this.actionPanel = new Controls.Action.Panel();
+            this.joinLeaveAction = new Controls.Action.JoinLeaveCommunity();
+            this.joinLeaveAction.CanLeave = this.ownType.CanLeave();
+            this.topicForm = new Controls.Community.Topic.Form();
+            this.topicForm.CanManage = this.ownType.CanManage();
+            this.topicAction = new Controls.Action.SelfAction(this.topicForm);
+            this.topicAction.Text("@Resource.Global.Topic_Create_New");
+
+            this.AllCategories = false;
+
+            $.views.helpers({
+                Navigation: Navigation,
+                dateFormatter: Foundation.ValueConverter.DateFormatter,
+                visibilityFromString: Foundation.ValueConverter.Visibility.FromString,
+                regularFolderVisibility: Foundation.List.Folder.RegularFolderVisibility
+            });
+        },
+
+        Initialize: function (options) {
+            ReflectMenu(Navigation.Menu.MainItem.ItemType.Scroll, Navigation.Menu.SubItem.ItemType.Scroll_Communities, true);
+
+            var $this = this;
+
+            this.joinLeaveAction.StateOverride = function (joinLeave, state) {
+                if (state == Foundation.Controls.Action.State.Active) {
+                    if (Session.User.Id > 0 && $this.Community) {
+                        Admin.Service.Community.Membership.Exists($this._token.CommunityId, function (exists) {
+                            if (exists == Admin.Service.Community.Membership.Type.None)
+                                joinLeave.State(Foundation.Controls.Action.State.Active);
+                            else if ((exists & Admin.Service.Community.Membership.Type.Membership) == 0)
+                                joinLeave.State(Foundation.Controls.Action.State.Inactive);
+                            else {
+                                joinLeave.State(Foundation.Controls.Action.State.Active);
+                                joinLeave.Exercised(true);
+                            }
+                        });
+                    }
+                    else
+                        joinLeave.State(Foundation.Controls.Action.State.Inactive);
+                }
+                else if (joinLeave.State() != state)
+                    joinLeave.State(state);
+            };
+
+            this.ownType.Initialize($('#ownType'));
+            this.ownType.ValueChanged = function () {
+                $.observable($this.joinLeaveAction).setProperty('CanLeave', $this.ownType.CanLeave());
+                $.observable($this.topicForm).setProperty('CanManage', $this.ownType.CanManage());
+                //Moderators can use the Owner/Community/Topics view to edit
+                //$this.List.View.CanManage($this.ownType.CanManage());
+                $this.checkCreateTopic();
+            };
+
+            this.topicAction.StateOverride = function (createTopic, state) {
+                if (state == Foundation.Controls.Action.State.Active)
+                    $this.checkCreateTopic();
+                else if (createTopic.State() != state)
+                    createTopic.State(state);
+            };
+
+            //Will call EvaluateActions
+            Foundation.List.Folder.View.prototype.Initialize.call(this, options);
+            this.folders.itemsControl.Template = jQuery.templates(
+            '<li data-itemIndex="{{:#index}}">' +
+                '{{if HasChildren && Children}}' +
+                    '<span class="expander collapsed"></span><a {{if NavToken link=false}}href="{{:~Navigation.Main.Href(NavToken)}}" {{/if}}data-itemIndex="-1">{{:Name}}</a>{{if Locked}}<span class="lock"></span>{{/if}}' +
+                    '<ul id="subItems" style="display: none;"></ul>' +
+                '{{else}}<span class="expanderPlaceholder"></span><a {{if NavToken link=false}}href="{{:~Navigation.Main.Href(NavToken)}}" {{/if}}data-itemIndex="-1">{{:Name}}</a>{{if Locked}}<span class="lock"></span>{{/if}}{{/if}}' +
+            '</li>');
+
+            $('#blog').attr('href', Navigation.Main.Href(Navigation.Community.TopicsView(this._token.CommunityId, 0, { suppressNavigate: true })));
+
+            this.List.View.ItemViewCommand = function (topic) {
+                Navigation.Community.TopicPostsView($this._token.CommunityId, topic.Id);
+            };
+
+            this.List.View.EditCommand = function (topic) {
+                //Moderators can use the Owner/Community/Topics view to edit
+                if (Session.User.Id > 0 && topic.Id > 0 && topic.PostedBy.Id == (topic.PostedBy.AccountType == Model.AccountType.Business ? Session.User.Business.Id : Session.User.Id)) {
+                    $this.topicForm.Populate($this._token.CommunityId, topic.Id);
+                    $this.topicForm.Show();
+                }
+            };
+
+            this.topicAction.actionCommand = function (command) {
+                if ($this.topicAction.$action.hasClass('active') && $this.topicAction.Enabled() && $this.SessionIsValid() && (($this.Folder.Id > 0 || $this.ownType.IsMember()) || ($this.ownType.CanManage() && !$this.AllCategories))) {
+                    if ($this.Folder.Id > 0 && (!$this.topicForm.forum || $this.topicForm.forum.Id != $this.Folder.Id)) {
+                        User.Service.Community.Category.GetDisplayPath($this._token.CommunityId, $this.Folder.Id, function (forum) {
+                            $this.topicForm.Forum(forum);
+                            //_topicForm.Show();
+                        });
+                        //return;
+                    }
+                    else if ($this.Folder.Id == 0 && $this.topicForm.forum)
+                        $this.topicForm.Forum();
+
+                    $this.topicForm.Show();
+                }
+            };
+
+            this.topicForm.Initialize();
+            this.topicForm.Submit = function () {
+                if ($this.topicForm.TopicId > 0)
+                    $this.Pager.RefreshPage();
+                else
+                    $this.populateList();
+            };
+
+            this.confirmLeave = this.joinLeaveAction.ConfirmLeave;
+            this.confirmLeave.Submit = function () {
+                if (Session.User.Id > 0 && $this._token.CommunityId > 0 && $this.ownType.CanLeave()) {
+                    Admin.Service.Community.Membership.LeaveCommunity($this._token.CommunityId, function (success) {
+                        $this.confirmLeave.SubmitComplete();
+                        if ($this.Community.Options.Open_To_View)
+                            Navigation.Main.Refresh();
+                        else
+                            Navigation.Community.ProfileView($this._token.CommunityId);
+                    }, jQuery.proxy($this.confirmLeave.Invalidate, $this.confirmLeave));
+                }
+            };
+
+            this.confirmMembership = this.joinLeaveAction.PopupForm();
+            this.confirmMembership_Request = this.confirmMembership.Content;
+            this.confirmMembership.Submit = function () {
+                var member = Session.User.Id;
+                if (member > 0) {
+                    var community = $this._token.CommunityId;
+                    var business = $this.Community.Owner.AccountType == Model.AccountType.Business ? $this.Community.Owner.Id : 0;
+                    var confirmMembership_Type = $this.confirmMembership_Request.Type;
+                    if (community > 0 && confirmMembership_Type > 0 && confirmMembership_Type != Model.Community.MemberType.Owner) {
+                        if (confirmMembership_Type == Model.Community.MemberType.Member && $this.Community.Options.Open_To_Join) {
+                            Admin.Service.Community.Membership.Join(community, business, function (success) {
+                                $this.confirmMembership.SubmitComplete();
+                                Navigation.Main.Refresh();
+                            }, jQuery.proxy($this.confirmMembership.Invalidate, $this.confirmMembership));
+                        }
+                        else {
+                            var request = {
+                                Community: community,
+                                Type: confirmMembership_Type
+                            };
+
+                            var requestMessage = $('#requestMessage', $this.confirmMembership.$container).val();
+                            if (!String.isNullOrWhiteSpace(requestMessage))
+                                request.Text = requestMessage;
+
+                            Admin.Service.Community.Membership.Request(request, function (success) {
+                                $this.confirmMembership.SubmitComplete();
+                                Navigation.Main.Refresh();
+                            }, jQuery.proxy($this.confirmMembership.Invalidate, $this.confirmMembership));
+                        }
+                        return;
+                    }
+                }
+                throw new Foundation.Exception.OperationException(Foundation.Exception.OperationException.Type.Invalid);
+            };
+            this.confirmMembership.Error = function (error, data) {
+                if (error == Foundation.ErrorMessageType.Data_DuplicateRecord)
+                    return String.format("@Resource.Global.Editor_Error_processing_request_X", String.format("@Resource.Community.Request_Exists", $this.confirmMembership.Content["Community"]));
+                else if (error == Foundation.ErrorMessageType.Operation_InvalidInteraction)
+                    return "@Resource.Community.Business_Mismatch_Moderator";
+            };
+        },
+
+        BlogTitle: function (blogTitle) {
+            if (blogTitle != undefined) {
+                this.blogTitle = blogTitle;
+                $('#blog').text(blogTitle);
+                if (this.Folder.Id == 0 && !this.AllCategories)
+                    $.observable(this).setProperty('Folder.Name', blogTitle);
+                this.ReflectTitle();
+            }
+            else
+                return this.blogTitle;
+        },
+
+        EvaluateActions: function (reset) {
+            this.ownType.Populate(this._token.CommunityId);
+            //need to delay EvaluateActions until Community is set as _joinAction depends on Community.Options
+            if (!this.Community) {
+                for (var i = 0, l = this.actionPanel.Actions.length; i < l; i++) {
+                    if (this.actionPanel.Actions[i].State() != Foundation.Controls.Action.State.Inactive)
+                        this.actionPanel.Actions[i].State(Foundation.Controls.Action.State.Inactive);
+                }
+            }
+            else {
+                Foundation.Page.prototype.EvaluateActions.call(this, reset);
+                this.checkAccess();
+            }
+        },
+
+        checkAccess: function () {
+            //Leave if no Open_To_View or Membership
+            if (!this.Community.Options.Open_To_View) {
+                if (Session.User.Id > 0) {
+                    var $this = this;
+                    Admin.Service.Community.Profile.IsMember(this._token.CommunityId, function (isMember) {
+                        if (!isMember) {
+                            Navigation.Community.ProfileView($this._token.CommunityId);
+                        }
+                    });
+                }
+                else
+                    Navigation.Community.ProfileView(this._token.CommunityId);
+            }
+        },
+
+        checkCreateTopic: function () {
+            //Disable when search is on
+            var locked = this.Folder.Id == 0 || !this.Folder.Data || this.Folder.Data.Locked ? !this.ownType.CanManage() : false;
+            if (this.Community && !locked && (this.ownType.IsMember() || this.Community.Options.Open_To_Post) && !this.AllCategories)
+                this.topicAction.State(Foundation.Controls.Action.State.Active);
+            else
+                this.topicAction.State(Foundation.Controls.Action.State.Inactive);
+        },
+
+        ReflectUser: function () {
+            Foundation.Page.prototype.ReflectUser.call(this);
+            if (this.Community) {
+                this.Pager.RefreshPage();
+                if (this.topicForm.$container)
+                    this.topicForm.Reset();
+            }
+        },
+
+        AddActions: function () {
+            this.actionPanel.Add(this.joinLeaveAction);
+            this.actionPanel.Add(this.topicAction);
+        },
+
+        ValidateRequest: function (token) {
+            if (token.CommunityId > 0 && token.Action == Model.Session.Action.CommunityTopicsView) {
+                if (token.CommunityForumId == Model.Community.Category.AllCategories) {
+                    token.CommunityForumId = 0;
+                    this.AllCategories = true;
+                    return true;
+                }
+                else if (token.CommunityForumId >= 0)
+                    return true;
+                /*if (!String.isNullOrWhiteSpace(token.SearchQuery)) {
+                    if (token.CommunityForumId == 0) {
+                        this.AllCategories = true;
+                        return true;
+                    }
+                }
+                else
+                    return true;*/
+            }
+
+            return false;
+        },
+
+        AutosetFolder: function (categories) {
+            //Start with Blog
+            return Foundation.List.Folder.AutosetType.Special;
+        },
+
+        GetCustomMessage: function (type) {
+            switch (type) {
+                case Foundation.List.Folder.MessageType.EmptyExplorer:
+                    return "@Resource.Community.Topics_Empty";
+                case Foundation.List.Folder.MessageType.SpecialFolderName:
+                    return (this.AllCategories ? "@Resource.Global.Forum_Topic_All" : this.BlogTitle());
+                default:
+                    return Foundation.List.Folder.View.prototype.GetCustomMessage.call(this, type);
+            }
+        },
+
+        prepareHeader: function (header) {
+            header = Foundation.List.Folder.View.prototype.prepareHeader.call(this, header);
+            if (this.Folder.Id > 0 && header.IsEmpty())
+                header.CustomTemplate = "ForumEmptyHeaderTemplate";
+
+            return header;
+        },
+
+        ReflectTitle: function () {
+            if (this.Community && this.Folder) {
+                Foundation.Page.prototype.ReflectTitle.call(this, [this.Folder.Name + "@Resource.Global.Page_TitleSeparator_1" + this.Community.Name, String.format("@Resource.Global.X_Community_Forums", (this.Community.Owner.AccountType == Model.AccountType.Business ? this.Community.Owner.Name : "@Resource.Global.Adscroll"))]);
+            }
+        },
+
+        Load: function () {
+            var $this = this;
+            User.Service.Community.Profile.Get(this._token.CommunityId, function (community) {
+                Foundation.List.Folder.View.prototype.Load.call($this, $this._token.CommunityForumId, 0);
+
+                if (community.BlogTitle)
+                    $this.BlogTitle(community.BlogTitle);
+                $this.Community = community;
+                $this.ReflectTitle();
+
+                $('.accountName').text(community.Owner.Name);
+                if (community.Owner.AccountType == Model.AccountType.Business)
+                    $('.businessAccount').show();
+                $('.communityName').text(community.Name);
+
+                $this.topicForm.Community(community);
+                $this.confirmLeave.Content["Community"] = community.Name;
+                $this.confirmMembership.Content["Community"] = community.Name;
+
+                if (community.Options.Open_To_Join)
+                    $this.confirmMembership_Request.Open_To_Join = true;
+
+                Foundation.Page.prototype.EvaluateActions.call($this, false); //Evaluate after Community is set as _joinLeaveAction depends on Community.Options
+                $this.checkAccess();
+
+                $('.asyncData').show();
+            }, jQuery.proxy(this.handleEntityFetchError, this));
+        },
+
+        GetFolderPath: function (forum, callback) {
+            User.Service.Community.Category.GetPath(this._token.CommunityId, forum, callback);
+        },
+
+        setFolder: function (folderId, folderName, options, data) {
+            if (this.AllCategories && folderId > 0)
+                this.AllCategories = false;
+
+            Foundation.List.Folder.View.prototype.setFolder.call(this, folderId, folderName, options, data);
+        },
+
+        FolderChanged: function (forum) {
+            var forumId = forum.Id > 0 ? forum.Id : this.AllCategories ? Model.Community.Category.AllCategories : Model.Community.Category.Blog;
+            if (this._token.CommunityForumId != forumId) {
+                this._token.CommunityForumId = forumId;
+                Navigation.Main.Reflect(this._token);
+            }
+            this.topicForm.Forum = forum.Data;
+            this.checkCreateTopic();
+            Foundation.List.Folder.View.prototype.FolderChanged.call(this, forum);
+            this.ReflectTitle();
+        },
+
+        populateFolders: function (parentForum, lookupForum, callback) {
+            User.Service.Community.Category.Get(this._token.CommunityId, parentForum, lookupForum, function (forums) {
+                callback(forums, parentForum);
+            });
+        },
+
+        doSearch: function () {
+            if (!String.isNullOrWhiteSpace(this._token.SearchQuery)) {
+                var searchPosts = this.searchBox.OptionChecked();
+                if (searchPosts)
+                    this._token.SearchOptions |= Model.Session.SearchOptions.Posts;
+                else
+                    this._token.SearchOptions &= ~Model.Session.SearchOptions.Posts;
+            }
+            else
+                this._token.SearchOptions &= ~Model.Session.SearchOptions.Posts;
+            return Foundation.List.Folder.View.prototype.doSearch.call(this, function () {
+                this.populate(0);
+                return true;
+            });
+        },
+
+        fetchList: function (queryInput, callback, faultCallback) {
+            var forumId = this.Folder.Id > 0 ? this.Folder.Id : this.AllCategories ? Model.Community.Category.AllCategories : Model.Community.Category.Blog;
+            if (!String.isNullOrWhiteSpace(this._token.SearchQuery)) {
+                queryInput.SearchQuery = this._token.SearchQuery;
+                if ((this._token.SearchOptions & Model.Session.SearchOptions.Posts) > 0)
+                    queryInput.SearchPosts = true;
+            }
+            User.Service.Community.Topic.Search(this._token.CommunityId, forumId, queryInput, callback, faultCallback);
+        },
+
+        fetchPage: function (page, callback, faultCallback) {
+            var $this = this;
+            User.Service.Community.Topic.ToPreview(this._token.CommunityId, page, function (topics) {
+                callback($this.preparePage(page, topics));
+            }, faultCallback);
+        },
+
+        onCommand: function (command) {
+            switch (command) {
+                case "Blog":
+                case "AllCategories":
+                    var allCategories = this.AllCategories;
+                    if (command == "AllCategories")
+                        this.AllCategories = true;
+                    else if (command == "Blog")
+                        this.AllCategories = false;
+                    if (this.AllCategories != allCategories || this.Folder.Id != 0)
+                        this.setFolder(0, '', Foundation.List.Folder.SetFolderOptions.ClearSearchQuery | Foundation.List.Folder.SetFolderOptions.ClearSelectedFolder);
+                    break;
+                case "ViewAccount":
+                    switch (this.Community.Owner.AccountType) {
+                        case Model.AccountType.Business:
+                            Navigation.Business.ProfileView(this.Community.Owner.Id);
+                            break;
+                        case Model.AccountType.Personal:
+                            Navigation.Personal.ProfileView(this.Community.Owner.Id);
+                            break;
+                    }
+                    break;
+                case "ViewCommunity":
+                    Navigation.Community.ProfileView(this._token.CommunityId);
+                    break;
+            }
+        }
+    }))();
+</script>}
+
+@section headerFrame {
+<table style="width:100%; margin-bottom:5px;">
+    <tr class="asyncData" style="display:none;">
+        <td style="text-align:left; padding-bottom:5px;" itemprop="breadcrumb">
+            <span class="businessAccount" style="display:none;"><a class="href accountName" data-command="ViewAccount"></a>&nbsp;&gt;&nbsp;@Resource.Dictionary.Communities&nbsp;&gt;&nbsp;</span><a class="href communityName" data-command="ViewCommunity"></a><span data-link="visible{:~regularFolderVisibility(Folder.Type)}">&nbsp;&gt;&nbsp;@Resource.Dictionary.Forums&nbsp;&gt;&nbsp;<span class="folderName"></span></span>
+        </td>
+        <td id="ownType" rowspan="2" style="display:none; text-align:right; float:right; width:auto;">
+            @Resource.Dictionary.Member_type: <span id="text"></span>
+        </td>
+    </tr>
+    <tr>
+        <td colspan="2" id="searchQuery" style="display:none; text-align:left; float:left; width:auto; padding-bottom:5px; padding-right:10px;">
+            @Resource.Dictionary.Search
+        </td>
+    </tr>
+</table>}
+
+@section leftFrame {
+<div class="side left" style="margin-bottom:5px;">
+    <a class="href" style="text-align:center;" id="blog" data-command="Blog">@Resource.Dictionary.Blog</a>
+</div>
+<div class="side left" data-link="visible{:folders.Visible()}">
+    <span class="header">@Resource.Dictionary.Forums</span>
+    <div data-ctrl="Foundation.Controls.Folder.TreeList" id="folders"></div>
+    <a class="href separated" style="text-align:center;" data-command="AllCategories">@Resource.Global.Forum_All</a>
+</div>}
+
+<div class="form header" style="margin-bottom: 5px;" data-link="visible{:~visibilityFromString(Folder.Name)}"><h4 class="folderName" itemprop="name"></h4></div>
+<!--span class="form header folderName" style="margin-bottom: 5px;" data-link="visible{:~visibilityFromString(Folder.Name)}"></span-->

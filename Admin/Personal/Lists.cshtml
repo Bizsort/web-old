@@ -1,0 +1,195 @@
+﻿@{
+    Page.Title = String.Format(Resource.Global.Page_TitleFormat, Resource.Global.My_Lists);
+    Layout = "~/Layout/_LCRPanel.cshtml";
+}
+
+@section head {
+<script type="text/javascript">
+    Page = new (Product.FolderEdit.extend({
+        ctor: function () {
+            this.ApplicationPage = "/Admin/Personal/Lists";
+
+            this.folderEdit = new Controls.Personal.List.Edit();
+
+            var listView = new Controls.Product.ListView();
+            listView.Selectable(true);
+            listView.Category(true);
+            listView.Account(true);
+            Product.FolderEdit.prototype.ctor.call(this, listView);
+            this.List.Entity = "@Resource.Dictionary.ad_s";
+            this.List.EmptyHeaderTemplate.Format("@Resource.Personal.List_X_Empty");
+            this.List.EmptyHeaderTemplate.ConverterParameter("<span data-link=\"Folder\"></span>&nbsp;"); //{{:Folder}}
+
+            this.confirmDeleteFolder = new Foundation.Controls.Confirm.Form();
+            this.confirmDeleteFolder.MessageFormat = "@Resource.Personal.List_Confirm_Delete";
+            this.confirmDeleteFolder.OptionText("@Resource.Personal.List_Products_Remove_Auto");
+
+            this.confirmDeleteItem = new Foundation.Controls.Confirm.Form();
+            this.confirmDeleteItem.MessageFormat = "@Resource.Personal.List_Products_Confirm_Remove";
+
+            $.views.helpers({
+                regularFolderVisibility: Foundation.List.Folder.RegularFolderVisibility,
+                visibilityFromString: Foundation.ValueConverter.Visibility.FromString,
+                dateFormatter: Foundation.ValueConverter.DateFormatter,
+                Resource: Resource
+            });
+        },
+
+        Initialize: function (options) {
+            ReflectMenu(Navigation.Menu.MainItem.ItemType.Personal, Navigation.Menu.SubItem.ItemType.Personal_Lists);
+
+            Foundation.List.Folder.Edit.prototype.Initialize.call(this, options);
+
+            $('.accountName').text(this.AccountName());
+
+            this.confirmDeleteFolder.Error = function (error, data) {
+                if (error == Foundation.ErrorMessageType.Data_ReferentialIntegrity)
+                    return "@String.Format(Resource.Global.Folder_Error_Delete, Resource.Personal.List, Resource.Dictionary.Products.ToLower())";
+            };
+        },
+
+        ValidateRequest: function (token) {
+            if (this.SessionIsValid() && token.AccountType == Model.AccountType.Personal && token.Action == Model.Session.Action.PersonalListProductsEdit) {
+                return true;
+            }
+            else
+                return false;
+        },
+
+        GetCustomMessage: function (type) {
+            switch (type) {
+                case Foundation.List.Folder.MessageType.EmptyExplorer:
+                    return "@Html.Raw(Resource.Personal.Lists_Empty)";
+                default:
+                    return Foundation.List.Folder.View.prototype.GetCustomMessage.call(this, type);
+            }
+        },
+
+        Load: function () {
+            Foundation.List.Folder.View.prototype.Load.call(this, this._token.PersonalListId, 0);
+        },
+
+        FolderChanged: function (list) {
+            if (this._token.PersonalListId != list.Id) {
+                this._token.PersonalListId = list.Id;
+                Navigation.Main.Reflect(this._token);
+            }
+            Foundation.List.Folder.Edit.prototype.FolderChanged.call(this, list);
+        },
+
+        populateFolders: function (parentList, lookupList, callback) {
+            if (parentList == 0)
+                Admin.Service.Personal.List.Get(function (lists) {
+                    callback(lists, parentList);
+                });
+        },
+
+        fetchList: function (queryInput, callback, faultCallback) {
+            var $this = this;
+            if (this.Folder.Id > 0) {
+                Admin.Service.Personal.List.GetProducts(this.Folder.Id, function (queryOutput) {
+                    if (queryOutput.Series && queryOutput.Properties) {
+                        if (queryOutput.Series.length == queryOutput.Properties.length)
+                            $this._properties = queryOutput.Properties;
+                        else
+                            throw new Foundation.Exception.OperationException(Foundation.Exception.OperationException.Type.UnexpectedState);
+                    }
+                    callback(queryOutput);
+                }, faultCallback);
+            }
+            else
+                callback(null);
+        },
+
+        fetchPage: function (page, callback, faultCallback) {
+            var $this = this;
+            User.Service.Product.Profile.ToPreview(page, this.List.View.OptionalColumns(), function (products) {
+                callback($this.preparePage(page, products, $this._properties, function (product, property) {
+                    product.Date = property.Date;
+                    if (property.Text)
+                        product.Text = property.Text;
+                }));
+            }, faultCallback);
+        },
+
+        CreateFolder: function (list, parentList, folderEdit, callback, faultCallback) {
+            Admin.Service.Personal.List.Create({ Id: 0, Name: list.Name }, callback, faultCallback);
+        },
+
+        UpdateFolder: function (list, folderEdit, callback, faultCallback) {
+            Admin.Service.Personal.List.Update({ Id: list.Id, Name: list.Name }, callback, faultCallback);
+        },
+
+        DeleteFolder: function (list, callback, faultCallback) {
+            var removeProducts = this.confirmDeleteFolder.OptionChecked() ? true : false;
+            var $this = this;
+            Admin.Service.Personal.List.Delete(list, removeProducts, function (success) {
+                if (success && $this._token.PersonalListId == list) {
+                    $this._token.PersonalListId = 0;
+                    Navigation.Main.Reflect($this._token);
+                }
+                callback(success);
+            }, faultCallback);
+        },
+
+        DeleteItem: function (list, products, callback, faultCallback) {
+            Admin.Service.Personal.List.RemoveProduct(list, products, callback, faultCallback);
+        },
+
+        onCommand: function (command) {
+            switch (command) {
+                case "EditProfile":
+                    if (this.SessionIsValid())
+                        Navigation.Personal.ProfileEdit();
+                    break;
+                default:
+                    Foundation.List.Folder.Edit.prototype.onCommand.call(this, command);
+                    break;
+            }
+        }
+    }))();
+</script>}
+
+@section headerFrame {
+<div class="context" style="width:100%; margin-bottom:10px;">
+    <a class="href accountName" data-command="EditProfile"></a>&nbsp;&gt;&nbsp;<div data-ctrl="Foundation.Controls.Layout.DropDown" data-ctrl-Text="@Resource.Personal.Lists"><div data-ctrl="Foundation.Controls.Folder.DropDownList" id="folders"></div></div><span data-link="visible{:~regularFolderVisibility(Folder.Type)}">&nbsp;&gt;&nbsp;<a class="href folderName" data-command="RenameFolder"></a></span>
+</div>}
+
+@*@section leftFrame {
+    <div class="side left" data-link="visible{:folders.Visible()}">
+        <span class="header">@Resource.Personal.Lists</span>
+        <div data-ctrl="Foundation.Controls.Folder.ListBox" id="folders"></div>
+    </div>
+}*@
+
+@section rightFrame{
+<div class="side right" style="margin-bottom:5px;">
+    <ul class="actions">
+        <li>
+            <a id="createFolder" class="action active" data-command="CreateFolder">@Resource.Personal.List_Create</a>
+        </li>
+    </ul>
+</div>
+<div class="side right" style="margin-bottom:5px;" data-link="visible{:~regularFolderVisibility(Folder.Type)}">
+    <span class="header" data-link="{:Folder.Name}"></span>
+    <ul class="actions">
+        <li>
+            <a id="editFolder" class="action active" data-command="RenameFolder">@Resource.Action.Rename</a>
+        </li>
+        <li>
+            <a id="deleteFolder" class="action active" data-command="DeleteFolder">@Resource.Action.Delete</a>
+        </li>
+    </ul>
+</div>
+<div class="side right" data-link="visible{:~regularFolderVisibility(Folder.Type)}">
+    <span class="header">@String.Format(Resource.Action.Selected_X, Resource.Dictionary.ad_s)</span>
+    <ul class="actions">
+        <li>
+            <a id="deleteItem" class="action isFolderItemSelected" data-command="DeleteItem">@String.Format(Resource.Action.Remove_from_X, Resource.Dictionary.List)</a>
+        </li>
+    </ul>
+</div>}
+
+<div class="form header" style="margin-bottom: 5px;" data-link="visible{:~visibilityFromString(Folder.Name)}"><span class="folderName"></span></div>
+<!--span class="form header folderName" style="margin-bottom: 5px;" data-link="visible{:~visibilityFromString(Folder.Name)}"></span-->
+

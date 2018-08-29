@@ -1,0 +1,34 @@
+﻿@{
+    Layout = "~/Admin/Product/_Review.cshtml";
+}
+
+@section head {
+<script type="text/javascript">
+    Page = new (Admin.Product.Review.extend({
+        ctor: function () {
+            this.ApplicationPage = "/Admin/Product/Review";
+            Admin.Product.Review.prototype.ctor.call(this);
+        },
+
+        ValidateRequest: function (token) {
+            if (this.SessionIsValid() && token.Action == Model.Session.Action.AdReview) {
+                if (token.PendingStatus == Model.Product.PendingStatus.StaffReview && Session.User.SecurityProfile.CanReview_Staff) {
+                    this.Staff = true;
+                    return true;
+                }
+                else if (token.PendingStatus == Model.Product.PendingStatus.PeerReview)
+                    return true;
+            }
+            return false;
+        },
+
+        Initialize: function (options) {
+            ReflectMenu(Navigation.Menu.MainItem.ItemType.Advertise, (this.Staff ? Navigation.Menu.SubItem.ItemType.Advertise_Review_Staff : Navigation.Menu.SubItem.ItemType.Advertise_Review_Peer));
+            Foundation.List.Filter.View.prototype.Initialize.call(this, options);
+        },
+
+        fetchList: function (queryInput, callback, faultCallback) {
+            Admin.Service.Product.Profile.PendingReview(this.Staff, queryInput, callback, faultCallback);
+        }
+    }))();
+</script>}

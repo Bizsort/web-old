@@ -1,0 +1,117 @@
+﻿@{
+    Layout = "~/Account/_Create.cshtml";
+}
+
+@section token {
+<script type="text/javascript">
+    Navigation.Main.GetToken = function (pageUri) {
+        return new Session.Navigation.Token(pageUri, Model.Session.Action.AccountCreate);
+    };
+</script>}
+
+@section head {
+<script type="text/javascript">
+    Geocoder = {};
+
+    Page = new (Account.Create.extend({
+        ctor: function () {
+            this.ApplicationPage = "/Account/Create";
+            Account.Create.prototype.ctor.call(this);
+
+            this.ValidatorOptions.rules.acceptTerms = "required";
+            this.ValidatorOptions.messages.acceptTerms = "@Resource.Global.Account_Terms_Error";
+        },
+
+        Initialize: function (options) {
+            Account.Create.prototype.Initialize.call(this, options);
+            $('<div class="form" style="margin-top:10px;"><span>' + Controls.SignIn.Prompt("@Resource.Global.Account_Facebook_SignIn_Prefix", "@Resource.Global.Account_Facebook_SignIn_Postfix") + '</span></div>').insertBefore('#form');
+        },
+
+        Load: function () {
+            Account.Create.prototype.Load.call(this);
+            this.captchaImage = $('<img src="' + Session.CaptchaRef() + '"/>');
+            $('#captchaImage').append(this.captchaImage);
+            $('#captchaContainer').show();
+        },
+
+        Save: function (submit) {
+            if (Session.User.Id == 0 && this._token.Action == Model.Session.Action.AccountCreate) {
+                var email = $('#email', this.$container).val();
+                var password = $('#password', this.$container).val();
+                var name = $('#name', this.$container).val();
+                if (String.isNullOrWhiteSpace(name))
+                    name = null;
+
+                var securityCode = $('#securityCode', this.$container).val();
+
+                var $this = this;
+                User.Service.Master.Account.Create(email, password, name, this.location.Text()/*this.$address*/, securityCode, function (success) {
+                    $this.SaveComplete(!success);
+                    if (success) {
+                        $this.$container.detach();
+                        $('#content').empty().append('<span id="successMessage" class="formSuccess">@Resource.Global.Account_Create_PendingConfirm</span>');
+                    }
+                }, jQuery.proxy(this.Invalidate, this));
+            }
+            else
+                throw new Foundation.Exception.OperationException(Foundation.Exception.OperationException.Type.Invalid);
+        },
+
+        GetErrorMessage: function (error, data) {
+            switch (error) {
+                case Foundation.ErrorMessageType.Argument_Invalid:
+                    if (data.ParamName == "SecurityCode") {
+                        var msg = "@String.Format(Resource.Global.Editor_Error_Enter_X_Valid, Resource.Dictionary.Security_code)";
+                        this.$errorInfo.SetError('securityCode', msg);
+                        return msg;
+                    }
+                    else
+                        return Account.Create.prototype.GetErrorMessage.call(this, error, data);
+                default:
+                    return Account.Create.prototype.GetErrorMessage.call(this, error, data);
+            }
+        },
+
+        onCommand: function (command) {
+            switch (command) {
+                case "RefreshCaptcha":
+                    var $this = this;
+                    Session.GenerateCaptcha(function (success) {
+                        if (success)
+                            $this.captchaImage.attr('src', Session.CaptchaRef());
+                    }, jQuery.proxy(this.Invalidate, this));
+                    break;
+                case "Terms":
+                    showTerms();
+                    setDisabled($('#acceptTerms', this.$container), false);
+                    break;
+                default:
+                    Account.Create.prototype.onCommand.call(this, command);
+                    break;
+            }
+        }
+    }))();
+
+    function acceptTerms() {
+        $("#acceptTerms").prop('checked', true);
+    };
+</script>}
+
+<tr>
+    <td class="label" style="vertical-align:top;"><label for="securityCode">@Resource.Dictionary.Security_code</label></td>
+    <td class="value" style="width:155px; vertical-align:top;"><input type="text" id="securityCode" name="securityCode" /></td>
+    <td colspan="2" class="value" style="vertical-align:top;">
+        <table id="captchaContainer" style="display:none; float:left;">
+            <tr>
+                <td id="captchaImage"></td>
+                <td style="vertical-align:top;">
+                    [<a class="href" data-command="RefreshCaptcha" tabindex="-1">@Resource.Action.Refresh</a>]
+                </td>
+            </tr>
+        </table>
+    </td>
+</tr>
+<tr>
+    <td class="label"><label for="acceptTerms">@Resource.Global.AdScrl_Terms</label></td>
+    <td colspan="3" class="value"><input type="checkbox" id="acceptTerms" name="acceptTerms" />&nbsp;@Resource.Global.Account_Terms_Prompt&nbsp;<a class="href" rel="nofollow" data-command="Terms">@Resource.Global.AdScrl_Terms</a></td>
+</tr>

@@ -1,0 +1,30 @@
+﻿@{
+    Layout = "~/Admin/Product/_Review.cshtml";
+}
+
+@section head {
+<script type="text/javascript">
+    Page = new (Admin.Product.Review.extend({
+        ctor: function () {
+            this.ApplicationPage = "/Admin/Product/Feed";
+            Admin.Product.Review.prototype.ctor.call(this);
+        },
+
+        ValidateRequest: function (token) {
+            if (this.SessionIsValid() && token.Action == Model.Session.Action.AdReview && Session.User.SecurityProfile.CanReview_Staff) {
+                this.Staff = true;
+                return true;
+            }
+            return false;
+        },
+
+        Initialize: function (options) {
+            ReflectMenu(Navigation.Menu.MainItem.ItemType.Advertise, Navigation.Menu.SubItem.ItemType.Advertise_NewlyPosted);
+            Foundation.List.Filter.View.prototype.Initialize.call(this, options);
+        },
+
+        fetchList: function (queryInput, callback, faultCallback) {
+            Admin.Service.Product.Profile.NewlyPosted(queryInput, callback, faultCallback);
+        }
+    }))();
+</script>}

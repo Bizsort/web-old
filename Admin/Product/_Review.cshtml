@@ -1,0 +1,31 @@
+@{
+    Page.Title = String.Format(Resource.Global.Page_TitleFormat, Resource.Product.Ad_Review);
+    Layout = "~/Layout/_LCRPanel.cshtml";
+}
+
+@section head {
+<script type="text/javascript">
+    Admin.Product = {
+        Review: Product.ListView.extend({
+            ctor: function () {
+                this.searchBox = new Foundation.Controls.Search.TextBox();
+                var listView = new Controls.Product.ListView();
+                listView.Account(true);
+                listView.Status(true);
+                Product.ListView.prototype.ctor.call(this, listView);
+                this.Pager.FetchLimit = 1000;
+                this.List.Entity = "@Resource.Dictionary.ad_s";
+                this.Staff = false;
+
+                $.views.helpers({
+                    dateFormatter: Foundation.ValueConverter.DateFormatter
+                });
+            },
+
+            fetchPage: function (page, callback, faultCallback) {
+                Admin.Service.Product.Profile.ToReviewPreview(this.Staff, page, callback, faultCallback);
+            }
+        })
+    };
+</script>
+@RenderSection("head", required: false)}

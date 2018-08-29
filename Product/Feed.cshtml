@@ -1,0 +1,52 @@
+﻿@{
+    Page.Title = String.Format(Resource.Global.Page_TitleFormat, Resource.Product.Ads);
+    Page.MicrodataItemType = "http://schema.org/ItemList";
+    Layout = "~/Layout/_LCRPanel.cshtml";
+}
+
+@section token {
+<script type="text/javascript">
+    Navigation.Main.GetToken = function (pageUri) {
+        return new Session.Navigation.Token(pageUri, Model.Session.Action.ProductSearch);
+    };
+</script>}
+
+@section head {
+<meta name="robots" content="noindex, follow" />
+<script type="text/javascript">
+    Page = new (Product.ListView.extend({
+        ctor: function () {
+            var listView = new Controls.Product.ListView();
+            listView.Account(true);
+            Product.ListView.prototype.ctor.call(this, listView);
+            this.Pager.FetchLimit = 5000;
+            this.List.Entity = "@Resource.Dictionary.product_s";
+
+            $.views.helpers({
+                dateFormatter: Foundation.ValueConverter.DateFormatter,
+                Navigation: Navigation
+            });
+        },
+
+        ValidateRequest: function (token) {
+            if (token.Action == Model.Session.Action.ProductSearch) {
+                return true;
+            }
+            return false;
+        },
+
+        Initialize: function (options) {
+            ReflectMenu(Navigation.Menu.MainItem.ItemType.Scroll, Navigation.Menu.SubItem.ItemType.Scroll_Products, true);
+            Foundation.List.View.prototype.Initialize.call(this, options);
+        },
+
+        Load: function () {
+            Foundation.List.View.prototype.Load.call(this);
+            setOrCreateMetaTag("name", "robots", "noindex");
+        },
+
+        fetchList: function (queryInput, callback, faultCallback) {
+            User.Service.Product.Profile.NewlyPosted(queryInput, callback, faultCallback);
+        }
+    }))();
+</script>}

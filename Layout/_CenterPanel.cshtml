@@ -1,0 +1,22 @@
+﻿@{
+    Layout = "~/_Master.cshtml";
+}
+
+@section token {
+@RenderSection("token", required: false)}
+
+@section head {
+@RenderSection("head", required: false)}
+
+<table id="content" style="margin-top:10px; margin-left: auto; margin-right: auto;">
+    <tr style="vertical-align:top; height:auto;">
+        <td id="headerFrame">
+            @RenderSection("headerFrame", required: false)
+        </td>
+    </tr>
+    <tr style="vertical-align:top;">
+        <td style="text-align:center;">
+            @RenderBody()
+        </td>
+    </tr>
+</table>

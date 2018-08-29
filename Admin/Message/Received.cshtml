@@ -1,0 +1,357 @@
+﻿@{
+    Page.Title = String.Format(Resource.Global.Page_TitleFormat, Resource.Global.My_Messages);
+    Layout = "~/Layout/_LCRPanel.cshtml";
+}
+
+@section head {
+<script type="text/javascript">
+    Page = new (Foundation.List.Folder.Edit.extend({
+        ctor: function () {
+            this.ApplicationPage = "/Admin/Message/Received";
+
+            this.searchBox = new Foundation.Controls.Search.TextBox();
+            this.searchQuery = new Foundation.Controls.Search.Context();
+            this.folderEdit = new Controls.Message.Folder.Edit();
+
+            var listView = new Controls.Message.Received.ListView();
+            Foundation.List.Folder.Edit.prototype.ctor.call(this, listView);
+            this.List.Entity = "@Resource.Dictionary.message_s";
+
+            //Done declaratively
+            //this.actionFolders = new Foundation.Controls.Folder.TwoLevelSelect();
+            //this.actionFolders.Text("@String.Format(Resource.Action.Move_to_X, Resource.Dictionary.Folder)");
+
+            this.confirmDeleteFolder = new Foundation.Controls.Confirm.Form();
+            this.confirmDeleteFolder.MessageFormat = "@Resource.Global.Folder_Confirm_Delete";
+            this.confirmDeleteFolder.OptionText("@Resource.Global.Messages_Remove_Auto");
+
+            this.confirmAddFolderItem = new Foundation.Controls.Confirm.Form();
+            this.confirmAddFolderItem.MessageFormat = "@Resource.Global.Messages_Confirm_Move_Folder";
+
+            this.confirmDeleteItem = new Foundation.Controls.Confirm.Form();
+            this.confirmDeleteItem.MessageFormat = "@Resource.Global.Messages_Confirm_Delete";
+
+            this.replyForm = new Controls.Message.Reply.InlineForm();
+
+            $.views.helpers({
+                personalBusinessMessages: Controls.Message.PersonalBusinessMessages,
+                regularFolderVisibility: Foundation.List.Folder.RegularFolderVisibility,
+                visibilityFromString: Foundation.ValueConverter.Visibility.FromString,
+                cssClassFromBool: Foundation.ValueConverter.CSS.Class.FromBool,
+                dateFormatter: Foundation.ValueConverter.DateFormatter,
+                Resource: Resource
+            });
+        },
+
+        Initialize: function (options) {
+            //ReflectMenu(Navigation.Menu.MainItem.ItemType.Messages, Navigation.Menu.SubItem.ItemType.Messages_Received);
+
+            //Call ReflectMenu before Page.Initialize
+            switch (this._token.AccountType) {
+                case Model.AccountType.Business:
+                    ReflectMenu(Navigation.Menu.MainItem.ItemType.Business, Navigation.Menu.SubItem.ItemType.Business_Messages);
+                    $('#personalBusinessMessages').show();
+                    break;
+                case Model.AccountType.Personal:
+                    ReflectMenu(Navigation.Menu.MainItem.ItemType.Personal, Navigation.Menu.SubItem.ItemType.Personal_Messages);
+                    if (Session.User.Business.Id > 0) {
+                        $('#personalBusinessMessages').show();
+                    }
+                    break;
+            }
+
+            $('.accountName').text(this.AccountName());
+            this.searchBox.Prompt(String.format("@Resource.Global.Search_X_messages", this.AccountName()));
+
+            var $this = this;
+
+            //There is no ActionPanel
+            this.Actions().push(this.actionFolders);
+
+            //Done with XAML binding in SL IsEnabled="{Binding IsItemSelected}"
+            this.actionFolders.StateOverride = function (actionFolders, state) {
+                if (state == Foundation.Controls.Action.State.Active) {
+                    if ($this.IsItemSelected())
+                        actionFolders.State(Foundation.Controls.Action.State.Active);
+                    else
+                        actionFolders.State(Foundation.Controls.Action.State.Inactive);
+                }
+                else if (actionFolders.State() != state)
+                    actionFolders.State(state);
+            };
+
+            //Done with XAML binding in SL IsEnabled="{Binding IsItemSelected}"
+            this.IsItemSelectedChanged(function () {
+                if ($this.actionFolders.Enabled() != $this.IsItemSelected())
+                    $this.actionFolders.Enabled($this.IsItemSelected());
+            })
+
+            //Will call EvaluateActions
+            Foundation.List.Folder.Edit.prototype.Initialize.call(this, options);
+
+            this.List.View.ReplyForm(this.replyForm);
+            this.replyForm.AccountType(this._token.AccountType);
+            this.replyForm.Initialize({ Container: $('<div></div>') });
+
+            //_replyForm.Submit = function () {
+            //    base.populateList();
+            //};
+
+            this.confirmDeleteFolder.Error = function (error, data) {
+                if (error == Foundation.ErrorMessageType.Data_ReferentialIntegrity)
+                    return "@String.Format(Resource.Global.Folder_Error_Delete, Resource.Dictionary.Folder, Resource.Global.subFolders_or_messages)";
+            };
+        },
+
+        AccountType: function (accountType) {
+            if (accountType != undefined) {
+                this.accountType = accountType;
+                switch (accountType) {
+                    case Model.AccountType.Business:
+                        this.AccountName(Session.User.Business.Name);
+                        break;
+                    case Model.AccountType.Personal:
+                        this.AccountName(Session.User.Name);
+                        break;
+                }
+            }
+            else
+                return this.accountType;
+        },
+
+        SessionIsValid: function () {
+            if (this.accountType != undefined) {
+                switch (this.accountType) {
+                    case Model.AccountType.Business:
+                        return Session.User.Id > 0 && Session.User.Business.Id > 0 ? true : false;
+                    case Model.AccountType.Personal:
+                        return Session.User.Id > 0 ? true : false;
+                }
+            }
+            return false;
+        },
+
+        ValidateRequest: function (token) {
+            this.AccountType(token.AccountType);
+            if (this.SessionIsValid() && token.Action == Model.Session.Action.MessagesReceived) {
+                if (!String.isNullOrWhiteSpace(token.SearchQuery)) {
+                    if (token.MessageFolder == 0) {
+                        this.AllMessages = true;
+                        return true;
+                    }
+                }
+                else
+                    return true;
+            }
+
+            return false;
+        },
+
+        AutosetFolder: function (categories) {
+            //Must start with Inbox, otherwise if there's no Folders if will show EmptyExplorer message and hide the list
+            return Foundation.List.Folder.AutosetType.Special;
+        },
+
+        GetCustomMessage: function (type) {
+            switch (type) {
+                case Foundation.List.Folder.MessageType.EmptyExplorer:
+                    return "@Resource.Global.Message_Received_Empty";
+                case Foundation.List.Folder.MessageType.SpecialFolderName:
+                    return (this.AllMessages ? "@Resource.Global.Message_All" : "@Resource.Dictionary.Inbox");
+                default:
+                    return Foundation.List.Folder.View.prototype.GetCustomMessage.call(this, type);
+            }
+        },
+
+        Load: function () {
+            Foundation.List.Folder.View.prototype.Load.call(this, this._token.MessageFolder, 0);
+        },
+
+        GetFolderPath: function (folder, callback) {
+            Admin.Service.Interaction.Message.Folder.GetPath(folder, callback);
+        },
+
+        setFolder: function (folderId, folderName, options, data) {
+            if (this.AllMessages && folderId > 0)
+                this.AllMessages = false;
+
+            Foundation.List.Folder.View.prototype.setFolder.call(this, folderId, folderName, options, data);
+        },
+
+        FolderChanged: function (folder) {
+            if (this._token.MessageFolder != folder.Id) {
+                this._token.MessageFolder = folder.Id;
+                Navigation.Main.Reflect(this._token);
+            }
+
+            Foundation.List.Folder.Edit.prototype.FolderChanged.call(this, folder);
+        },
+
+        populateFolders: function (parentFolder, lookupFolder, callback) {
+            parentFolder = 0; //Fetch all
+            Admin.Service.Interaction.Message.Folder.Get(parentFolder, function (folders) {
+                callback(folders, parentFolder);
+            });
+        },
+
+        doSearch: function () {
+            if (this._token.MessageFolder != 0)
+                this._token.MessageFolder = 0;
+            if (!String.isNullOrWhiteSpace(this._token.SearchQuery))
+                this.AllMessages = true;
+
+            Foundation.List.Folder.View.prototype.doSearch.call(this);
+        },
+
+        fetchList: function (queryInput, callback, faultCallback) {
+            this.replyForm.Hide();
+            if (this.Folder.Id == 0 && this.AllMessages) {
+                if (!String.isNullOrWhiteSpace(this._token.SearchQuery))
+                    queryInput.SearchQuery = this._token.SearchQuery;
+                Admin.Service.Interaction.Message.Received.Get(this._token.AccountType, queryInput, callback, faultCallback);
+            }
+            else
+                Admin.Service.Interaction.Message.Folder.GetMessages(this._token.AccountType, this.Folder.Id, queryInput, callback, faultCallback);
+        },
+
+        fetchPage: function (page, callback, faultCallback) {
+            Admin.Service.Interaction.Message.Received.ToPreview(this._token.AccountType, page, callback, faultCallback);
+        },
+
+        CreateFolder: function (folder, parentFolder, folderEdit, callback, faultCallback) {
+            Admin.Service.Interaction.Message.Folder.Create(folder.Name, parentFolder, callback, faultCallback);
+        },
+
+        UpdateFolder: function (folder, folderEdit, callback, faultCallback) {
+            Admin.Service.Interaction.Message.Folder.Rename(folder.Id, folder.Name, callback, faultCallback);
+        },
+
+        DeleteFolder: function (folder, callback, faultCallback) {
+            var removeMessages = this.confirmDeleteFolder.OptionChecked() ? true : false;
+            var $this = this;
+            Admin.Service.Interaction.Message.Folder.Delete(folder, removeMessages, function (success) {
+                if (success && $this._token.MessageFolder == folder) {
+                    $this._token.MessageFolder = 0;
+                    Navigation.Main.Reflect($this._token);
+                }
+                callback(success);
+            }, faultCallback);
+        },
+
+        AddFolderItem: function (folder, messages, callback, faultCallback) {
+            Admin.Service.Interaction.Message.Folder.AddMessage(folder, messages, callback, faultCallback);
+        },
+
+        CanDelete: function (folderId, messages) {
+            return true;
+        },
+
+        DeleteItem: function (folder, messages, callback, faultCallback) {
+            Admin.Service.Interaction.Message.Received.Delete(this._token.AccountType, messages, callback, faultCallback);
+        },
+
+        onCommand: function (command) {
+            switch (command) {
+                case "AllMessages":
+                case "Inbox":
+                    var allMessages = this.AllMessages;
+                    if (command == "AllMessages")
+                        this.AllMessages = true;
+                    else if (command == "Inbox")
+                        this.AllMessages = false;
+                    if (this.AllMessages != allMessages || this.Folder.Id != 0)
+                        this.setFolder(0, '', Foundation.List.Folder.SetFolderOptions.ClearSearchQuery | Foundation.List.Folder.SetFolderOptions.ClearSelectedFolder);
+                    break;
+                case "EditProfile":
+                    if (this.SessionIsValid())
+                        switch (this._token.AccountType) {
+                            case Model.AccountType.Business:
+                                Navigation.Business.ProfileEdit();
+                                break;
+                            case Model.AccountType.Personal:
+                                Navigation.Personal.ProfileEdit();
+                                break;
+                        }
+                    break;
+                case "PersonalBusinessMessages":
+                    if (this.SessionIsValid()) {
+                        switch (this._token.AccountType) {
+                            case Model.AccountType.Business:
+                                Navigation.Message.Received(Model.AccountType.Personal);
+                                break;
+                            case Model.AccountType.Personal:
+                                Navigation.Message.Received(Model.AccountType.Business);
+                                break;
+                        }
+                    }
+                    break;
+                default:
+                    Foundation.List.Folder.Edit.prototype.onCommand.call(this, command);
+                    break;
+            }
+        }
+    }))();
+</script>}
+
+@section headerFrame {
+<table style="width:100%; margin-bottom:5px;">
+    <tr>
+        <td style="text-align:left; padding-bottom:5px;">
+            <a class="href accountName" data-command="EditProfile"></a>&nbsp;&gt;&nbsp;<span data-link="{:~personalBusinessMessages(accountType, 'Received')}"></span><span data-link="visible{:~regularFolderVisibility(Folder.Type)}">&nbsp;&gt;&nbsp;<a class="href folderName" data-command="RenameFolder"></a></span>
+        </td>
+    </tr>
+    <tr>
+        <td id="searchQuery" style="display:none; text-align:left; float:left; width:auto; padding-bottom:5px;">
+            @Resource.Dictionary.Search
+        </td>
+    </tr>
+</table>}
+
+@section leftFrame {
+<div class="side left" id="personalBusinessMessages" style="display:none; margin-bottom:5px;">
+    <a class="href" data-command="PersonalBusinessMessages" data-link="{:~personalBusinessMessages(accountType, '!')}"></a>
+</div>
+<div class="side left">
+    <span class="header">@Resource.Dictionary.Folders</span>
+    <a class="folder" data-command="Inbox">@Resource.Dictionary.Inbox</a>
+    <div class="separated" data-ctrl="Foundation.Controls.Folder.TreeList" id="folders"></div>
+    <a class="folder separated" data-command="AllMessages" data-link="visible{:folders.Visible()}">@Resource.Global.Message_All</a>
+</div>}
+
+@section rightFrame{
+<div class="side right" style="margin-bottom:5px;">
+    <ul class="actions">
+        <li>
+            @*data-link="class{:~cssClassFromBool(AllMessages, 'action', 'action active')}"*@
+            <a id="createFolder" class="action active" data-command="CreateFolder">@Resource.Global.Folder_Create</a>
+        </li>
+    </ul>
+</div>
+<div class="side right" style="margin-bottom:5px;" data-link="visible{:~regularFolderVisibility(Folder.Type)}">
+    <span class="header" data-link="{:Folder.Name}"></span>
+    <ul class="actions">
+        <li>
+            <a id="createSubFolder" class="action active" data-command="CreateSubFolder">@Resource.Global.Folder_New_Sub</a>
+        </li>
+        <li>
+            <a id="editFolder" class="action active" data-command="RenameFolder">@Resource.Action.Rename</a>
+        </li>
+        <li>
+            <a id="deleteFolder" class="action active" data-command="DeleteFolder">@Resource.Action.Delete</a>
+        </li>
+    </ul>
+</div>
+<div class="side right">
+    <span class="header">@String.Format(Resource.Action.Selected_X, Resource.Dictionary.message_s)</span>
+    <ul class="actions">
+        <li>
+            <div data-ctrl="Foundation.Controls.Layout.DropDownAction"><div data-ctrl="Controls.Message.Folder.TwoLevelSelect" id="actionFolders" data-ctrl-text="@String.Format(Resource.Action.Move_to_X, Resource.Dictionary.Folder)"></div></div>
+        </li>
+        <li>
+            <a id="deleteItem" class="action isItemSelected" data-command="DeleteItem">@String.Format(Resource.Action.Delete_X, Resource.Dictionary.message_s)</a>
+        </li>
+    </ul>
+</div>}
+
+<div class="form header" style="margin-bottom: 5px;" data-link="visible{:~visibilityFromString(Folder.Name)}"><span class="folderName"></span></div>
+<!--span class="form header folderName" style="margin-bottom: 5px;" data-link="visible{:~visibilityFromString(Folder.Name)}"></span-->

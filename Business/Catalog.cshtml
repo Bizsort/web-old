@@ -1,0 +1,153 @@
+﻿@{
+    Page.Title = String.Format(Resource.Global.Page_TitleFormat, Resource.Business.Directory);
+    Page.MicrodataItemType = "http://schema.org/ItemList";
+    Layout = "~/Layout/_LCRPanel.cshtml";
+}
+
+@section head {
+<script type="text/javascript">
+    Page = new (Product.FolderView.extend({
+        ctor: function () {
+            this.ApplicationPage = "/Business/Catalog";
+            this.searchLocation = new Controls.Location.Current();
+            this.searchBox = new Foundation.Controls.Search.TextBox();
+            var listView = new Controls.Product.ListView();
+            this.filterAvail = new Foundation.Controls.List.Filter.Available();
+            this.filterApplied = new Foundation.Controls.List.Filter.Applied();
+            Product.FolderView.prototype.ctor.call(this, listView);
+            this.List.Entity = "@Resource.Dictionary.product_s";
+
+            $.views.helpers({
+                Navigation: Navigation,
+                dateFormatter: Foundation.ValueConverter.DateFormatter,    
+                visibilityFromString: Foundation.ValueConverter.Visibility.FromString,
+                regularFolderVisibility: Foundation.List.Folder.RegularFolderVisibility
+            });
+        },
+
+        Initialize: function (options) {
+            ReflectMenu(Navigation.Menu.MainItem.ItemType.Scroll, Navigation.Menu.SubItem.ItemType.Scroll_Businesses, true);
+            Foundation.List.Folder.View.prototype.Initialize.call(this, options);
+
+            var $this = this;
+            this.List.View.ItemViewCommand = function (product) {
+                Navigation.Product.View(Model.AccountType.Business, $this._token.AccountId, product.Id);
+            };
+        },
+
+        ValidateRequest: function (token) {
+            if (token.AccountType == Model.AccountType.Business && token.AccountId > 0 && token.Action == Model.Session.Action.CatalogView) {
+                return true;
+            }
+            else
+                return false;
+        },
+
+        GetCustomMessage: function (type) {
+            switch (type) {
+                case Foundation.List.Folder.MessageType.EmptyExplorer:
+                    return "@Resource.Business.Catalog_Empty";
+                default:
+                    return Foundation.List.Folder.View.prototype.GetCustomMessage.call(this, type);
+            }
+        },
+
+        ReflectTitle: function () {
+            if (this.Account && this.Folder) {
+                var title = [];
+                if (this.Folder.Id > 0)
+                    title.push(this.Folder.Name);
+                title.push(String.format("@Resource.Global.X_Ads", this.Account.AccountType == Model.AccountType.Business ? this.Account.Name : "@Resource.Global.Adscroll"));
+                Foundation.Page.prototype.ReflectTitle.call(this, title);
+            }
+        },
+
+        Load: function () {
+            var $this = this;
+            User.Service.Business.Profile.Get(this._token.AccountId, function (account) {
+                if (account.ProductsView == Model.Business.ProductsView.ProductCatalog) {
+                    //Used by fetchPage to set Href
+                    $this.Account = account;
+                    Foundation.List.Folder.View.prototype.Load.call($this, $this._token.BusinessCategoryId, 0);
+                    $this.ReflectTitle();
+                    $('.accountName').text(account.Name);
+                    $this.searchBox.Prompt(String.format("@Resource.Global.Search_X_products", account.Name));
+                    $('.asyncData').show();
+                }
+                else if (account.ProductsView == Model.Business.ProductsView.ProductList)
+                    Navigation.Product.ListView(Model.AccountType.Business, $this._token.AccountId);
+                else if (account.ProductsView == Model.Business.ProductsView.Multiproduct)
+                    Navigation.Business.ProfileView(this._token.AccountId, { navigationFlags: Model.Session.NavigationFlags.Tab_Products });
+            }, jQuery.proxy(this.handleEntityFetchError, this));
+        },
+
+        GetFolderPath: function (category, callback) {
+            User.Service.Business.Catalog.Category.GetPath(this._token.AccountId, category, callback);
+        },
+
+        FolderChanged: function (category) {
+            if (this._token.BusinessCategoryId != category.Id) {
+                this._token.BusinessCategoryId = category.Id;
+                Navigation.Main.Reflect(this._token);
+            }
+            Foundation.List.Folder.View.prototype.FolderChanged.call(this, category);
+            this.ReflectTitle();
+        },
+
+        populateFolders: function (parentCategory, lookupCategory, callback) {
+            User.Service.Business.Catalog.GetCategories(this._token.AccountId, parentCategory, lookupCategory, function (categories) {
+                callback(categories, parentCategory);
+            });
+        },
+
+        doSearch: function () {
+            if (!String.isNullOrWhiteSpace(this._token.SearchQuery)) {
+                Navigation.Product.ListView(Model.AccountType.Business, this._token.AccountId, this._token.SearchQuery);
+                return true;
+            }
+
+            return false;
+        },
+
+        fetchList: function (queryInput, callback, faultCallback) {
+            User.Service.Business.Catalog.GetProducts(this._token.AccountId, this.Folder.Id, queryInput, callback, faultCallback);
+        },
+
+        onCommand: function (command) {
+            switch (command) {
+                case "ViewAccount":
+                    Navigation.Business.ProfileView(this._token.AccountId);
+                    break;
+                case "AllProducts":
+                    Navigation.Product.ListView(Model.AccountType.Business, this._token.AccountId);
+                    break;
+            }
+        }
+    }))();
+</script>}
+
+@section headerFrame {
+<table style="width:100%; margin-bottom:5px;">
+    <tr class="asyncData" style="display:none;">
+        <td style="text-align:left; padding-bottom:5px;">
+            <a class="href accountName" data-command="ViewAccount"></a>&nbsp;&gt;&nbsp;@Resource.Business.Catalog<span data-link="visible{:~regularFolderVisibility(Folder.Type)}">&nbsp;&gt;&nbsp;<span class="folderName"></span></span>
+        </td>
+    </tr>
+    <tr>
+        <td id="filterApplied" style="display:none; text-align:left; padding-bottom:5px;">
+            @Resource.Dictionary.Filter
+        </td>
+    </tr>
+</table>}
+
+@section leftFrame {
+<div class="side left" style="margin-bottom:5px;">
+    <a class="href" data-command="AllProducts">@Resource.Business.Products_All</a>
+</div>
+<div class="side left" style="margin-bottom:5px;" data-link="visible{:folders.Visible()}">
+    <span class="header">@Resource.Dictionary.Categories</span>
+    <div data-ctrl="Foundation.Controls.Folder.TreeList" id="folders"></div>
+</div>}
+
+<div class="form header" style="margin-bottom: 5px;" data-link="visible{:~visibilityFromString(Folder.Name)}"><span class="folderName"></span></div>
+<!--span class="form header folderName" style="margin-bottom: 5px;" data-link="visible{:~visibilityFromString(Folder.Name)}"></span-->

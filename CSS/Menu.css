@@ -1,0 +1,457 @@
+﻿div#menuMain,
+div#menuMainPopup,
+a.group,
+.groupPath,
+.buttonPanel,
+span.pager,
+div.side,
+div.item-dropDown,
+table.imageSlider,
+table.imageFlipView,
+ul.stackPanel > li.action
+{
+    cursor: default;
+}
+
+.page-logo,
+a.active,
+button.active,
+.button.active,
+.form-button.active,
+.image-button.active,
+button.rte-button,
+div#menu li.active > a,
+div#menuMainPopup li > a,
+.page-footer > table a,
+table.filterAvail a,
+table.preview a,
+ul.treeView li > span.expander,
+div.item-dropDown a.drillDown,
+div.item-dropDown a.drillUp,
+div.tabPanel > ul > li,
+div.dropDownPopup > .rte-color-box
+{
+    cursor: pointer;
+}
+
+a.href:hover,
+.page-header a:hover,
+.page-footer > table a:hover,
+table.preview a:hover,
+table.filterAvail a:hover,
+a.group.active:hover,
+div.side > a.folder:hover,
+div.side > ul.actions > li a.action.active:hover,
+ul.stackPanel > li.action a.action.active:hover,
+div.item-dropDown > ul > li > a:hover,
+div.item-dropDown > span > a:hover,
+div.item-dropDown > a:hover,
+ul.treeView li > a:hover,
+ul.listBox > li > a:hover,
+fieldset.form legend a:hover
+{
+    text-decoration:underline;
+    cursor:pointer;
+}
+
+a[href],
+.buttonPanel > button:hover
+.buttonPanel > a.button:hover
+{
+    text-decoration:none;
+}
+
+.page-logo
+{
+    z-index: 2;
+    position:absolute;
+    top:20px;
+    padding-left:8px;
+    padding-right:8px;
+    font-size:28px;
+    font-weight:bold;
+    display:block;
+}
+
+div#menu
+{
+    position: relative;
+    margin: 0px auto;
+    text-align:left;
+    padding-bottom: 1px;/*Sticking out 1 px bottom line when sub-menu is not visible*/
+}
+
+ul#menuMainList > li.selected > a
+{
+    z-index: 1;
+    position: relative;
+}
+
+/*Sub-menu was sticking out right by 2 pixels (border) - fixed by box-sizing to get rid of horizontal scrollbar*/
+div#menuSub
+{
+    left: 0px;
+    margin-top: -1px;
+    position: absolute;
+    /*padding-bottom: 1px; see Controls.Navigation.MenuControl.SelectItem*/
+} 
+
+div#menuSub,
+div#menuMain
+{
+    width: 100%;
+    overflow: hidden;
+    white-space: nowrap;
+    overflow-y:hidden;
+}
+
+ul#menuMainList,
+ul#menuSubList,
+div#menuMainPopup ul,
+div.item-dropDown ul,
+div.side ul
+{
+    padding: 0;
+    margin: 0px;
+}
+
+ul#menuSubList
+{
+    margin-top: 2px;
+}
+
+table#searchBox input
+{
+    border: none !important;
+}
+
+table#searchBox input
+{
+    width: 100%;
+}
+
+table#searchBox
+{
+     margin-top: 2px;
+     width:150px;
+}
+
+table#searchBox.active 
+{
+    width:250px !important;
+}
+
+table#searchBox a {
+    background-image: url('../images/searchBox.png');
+    background-repeat: no-repeat;
+    padding-left: 16px;
+}
+
+ul#menuMainList > li,
+ul#menuSubList > li
+{
+    list-style-type: none;
+    display: inline;
+    float: left;
+}
+
+div#menuMainPopup ul > li,
+div.item-dropDown ul > li,
+div.side ul > li
+{
+    list-style-type: none;
+    vertical-align:middle;
+}
+
+ul#menuMainList > li > a,
+ul#menuSubList > li > a
+{
+    border-top-right-radius: 3px;
+    border-top-left-radius: 3px;
+    -moz-border-radius-topright: 3px;
+    -moz-border-radius-topleft: 3px;    
+    -webkit-border-top-left-radius: 3px;
+    -webkit-border-top-right-radius: 3px;    
+    text-decoration: none;
+    padding-left: 6px;
+    padding-top: 2px;
+    padding-right: 6px;
+    margin-top: 2px;
+    margin-left: 3px;
+    display: inline-block;
+}
+
+div#menuMainPopup li > a
+{
+    display: block;
+    padding: 4px 8px 4px 8px;
+}
+
+div.side > a,
+div.side ul.actions > li > a.action,
+div.side ul.actions > li > span.action,
+div.item-dropDown > span,
+div.item-dropDown > a
+{
+    display: block;
+}
+
+ul.productTags > li,
+div.item-dropDown ul > li,
+div.item-dropDown > span,
+div.item-dropDown > a
+{
+    vertical-align:middle;
+    padding: 4px 4px 4px 4px;
+}
+
+ul.productTags > li > a,
+div.item-dropDown ul > li > a,
+div.item-dropDown > span > a
+{
+    vertical-align: middle;
+}
+
+div.side > a,
+div.side ul.actions > li > a.action,
+div.side ul.actions > li > span.action
+{
+    padding: 2px 2px 2px 2px;
+}
+
+div#menuSub,
+ul#menuMainList > li > a,
+ul#menuMainList > li.selected > a,
+ul#menuSubList > li > a,
+ul#menuSubList > li.selected > a
+{
+    border-width: 1px 1px 0px 1px;
+    border-left-style: solid;
+    border-top-style: solid;
+    border-right-style: solid;
+}
+
+ul#menuMainList > li > a
+{
+    padding-bottom: 4px;
+}
+ul#menuMainList > li > a:hover,
+ul#menuMainList > li.highlighted > a
+{
+    padding-bottom: 5px;
+}
+/*important so a:hover does not override*/
+ul#menuMainList > li.selected > a
+/*ul#menuMainList > li.selected > a:hover*/
+{
+    padding-bottom: 6px !important;
+}
+ul#menuSubList > li > a
+{
+    padding-bottom: 3px;
+}
+ul#menuSubList > li.selected > a,
+ul#menuSubList > li > a:hover,
+ul#menuSubList > li.highlighted > a
+{
+    padding-bottom: 4px;
+}
+/*important so a:hover does not override*/
+ul#menuMainList > li.selected > a
+/*ul#menuMainList > li.selected > a:hover*/
+{
+    margin-top: 0px !important;
+}
+ul#menuMainList > li > a:hover,
+ul#menuMainList > li.highlighted > a,
+ul#menuSubList > li.selected > a,
+ul#menuSubList > li > a:hover,
+ul#menuSubList > li.highlighted > a
+{
+    margin-top: 1px;
+}
+
+div.side > a.separated,
+div.side > div.separated,
+div.side ul > li.separated,
+div.item-dropDown ul > li.separated,
+div.item-dropDown > span.separated,
+div.item-dropDown > a.separated
+{
+	border-top-style: solid; 
+	border-top-width: 1px;     
+}
+
+div.item-dropDown,
+div.dropDownPopup,
+table#searchBox
+{
+	border-style: solid;
+	border-width: 1px;
+}
+
+a.reverse
+{
+    text-decoration: none !important;
+}
+
+a.reverse:hover
+{
+    text-decoration: line-through !important;
+}
+
+span.pager a,
+ul.treeView li > span.expander,
+div.item-dropDown a.drillDown,
+div.item-dropDown a.drillUp
+{
+	-webkit-border-radius: 2px; 
+	-moz-border-radius: 2px;
+	border-radius: 2px;
+    padding: 2px;
+	display: inline-block; 
+	border-style: solid;
+	border-width: 1px;	
+	text-align: center;
+	vertical-align:middle;
+	outline: none;
+}
+
+.button,
+.form-button,
+button.rte-button,
+.buttonPanel > button
+{
+    display: inline-block;
+    -webkit-border-radius: 3px; 
+	-moz-border-radius: 3px;
+	border-radius: 3px;
+    vertical-align: middle;
+    text-align: center;
+    padding: 0;
+    overflow: visible;
+    border-style: solid;
+    border-width: 1px;
+}
+
+.form-button,
+.buttonPanel > a.button
+{
+    padding: 0px 3px 2px !important;
+}
+
+.buttonPanel > button
+{
+    padding: 2px 3px 1px !important;
+}
+
+.buttonPanel > button+button
+{
+    margin-left: 15px;
+}
+
+.buttonPanel > button,
+.buttonPanel > a.button
+{
+    min-width:50px;
+}
+
+.image-button > span,
+span.button-content,
+span.rte-button-content
+{
+    display: inline-block;
+    vertical-align: middle;
+    text-align: center;
+    min-width: 16px;
+    min-height: 16px;
+}
+
+span.rte-button-content.separated
+{
+	border-left-style: solid; 
+	border-left-width: 1px;     
+}
+
+.image-button
+{
+    margin: 0;
+    border-style: solid;
+    border-width: 1px;
+}
+
+.image-button > span
+{
+    margin: 2px;
+}
+
+span.button-content,
+span.rte-button-content
+{
+    margin-left: 4px;
+    margin-right: 4px;
+}
+
+/*http://stackoverflow.com/questions/9115757/css-span-wrap-with-padding*/
+/*ul.productTags a.img,
+div.item-dropDown a.img
+{
+    display:inline-block;
+    position:relative;
+}*/
+
+a.image-button.left
+{
+    margin-right:3px !important;
+}
+
+a.image-button.right
+{
+    margin-left:3px !important;
+}
+
+.image-button span.add,
+ul.productTags .image-button > span,
+div.item-dropDown .image-button > span
+{
+    background-image: url('../images/tag.png');
+    background-repeat: no-repeat;
+}
+
+span.pager a.page,
+ul.treeView li > span.expander,
+span.lock,
+div.item-dropDown a.drillDown,
+div.item-dropDown a.drillUp
+/*table#searchBox a.button*/
+{
+    padding: 2px 4px 2px 4px !important;
+}
+
+span.pager a.page
+{
+    margin: 0px 2px 0px 2px;
+}
+
+a.rounded 
+{
+	-webkit-border-radius: 5px !important; 
+	-moz-border-radius: 5px !important;
+	border-radius: 5px !important;
+	padding: 3px 5px 3px 5px !important;
+}
+
+a.round {
+	-webkit-border-radius: 2em !important;
+	-moz-border-radius: 2em !important;
+	border-radius: 2em !important;
+}
+
+.shadow 
+{
+	text-shadow: 0 1px 1px rgba(0,0,0,.3);
+	padding-bottom: .2em;
+	-webkit-box-shadow: 0 1px 2px rgba(0,0,0,.2);
+	-moz-box-shadow: 0 1px 2px rgba(0,0,0,.2);
+	box-shadow: 0 1px 2px rgba(0,0,0,.2);
+}

@@ -1,0 +1,51 @@
+﻿@{
+    Page.Title = String.Format(Resource.Global.Page_TitleFormat, Resource.Business.Directory);
+    Page.MicrodataItemType = "http://schema.org/ItemList";
+    Layout = "~/Layout/_LCRPanel.cshtml";
+}
+
+@section token {
+<script type="text/javascript">
+    Navigation.Main.GetToken = function (pageUri) {
+        return new Session.Navigation.Token(pageUri, Model.Session.Action.BusinessSearch);
+    };
+</script>}
+
+@section head {
+<!--meta name="robots" content="noindex, follow" /-->
+<script src="~/JS/Common/Geocoder.js" type="text/javascript"></script>
+<script type="text/javascript">
+    Page = new (Business.ListView.extend({
+        ctor: function () {
+            var listView = new Controls.Business.ListView();
+            Business.ListView.prototype.ctor.call(this, listView);
+            this.Pager.FetchLimit = 5000;
+            this.List.Entity = "@Resource.Dictionary.business_es";
+
+            $.views.helpers({
+                Navigation: Navigation
+            });
+        },
+
+        ValidateRequest: function (token) {
+            if (token.Action == Model.Session.Action.BusinessSearch) {
+                return true;
+            }
+            return false;
+        },
+
+        Initialize: function (options) {
+            ReflectMenu(Navigation.Menu.MainItem.ItemType.Scroll, Navigation.Menu.SubItem.ItemType.Scroll_Businesses, true);
+            Foundation.List.View.prototype.Initialize.call(this, options);
+        },
+
+        Load: function () {
+            Foundation.List.View.prototype.Load.call(this);
+            setOrCreateMetaTag("name", "robots", "noindex");
+        },
+
+        fetchList: function (queryInput, callback, faultCallback) {
+            User.Service.Business.Profile.NewlyPosted(queryInput, callback, faultCallback);
+        }
+    }))();
+</script>}

@@ -1,0 +1,124 @@
+﻿@{
+    Layout = "~/Layout/_SurfacePanel.cshtml";
+}
+
+@section token {
+<script type="text/javascript">
+    Navigation.Main.GetToken = function (pageUri) {
+        return new Session.Navigation.Token(pageUri, Model.Session.Action.Default);
+    };
+</script>}
+
+@section head {
+<meta name="keywords" content="Adscroll, Ads, Classified Ads, Business directory, Communities, Forums" />
+<meta name="description" content="Advertise your business, products and services on Adscroll.com, create local communities, discussion forums and post classified Ads." />
+@*Not tested<script src="http://maps.googleapis.com/maps/api/js?key=AIzaSyD-24GCNOxOz5iq1_SmYK5sgHPpAgnwZos" type="text/javascript"></script>*@
+<script src="http://maps.googleapis.com/maps/api/js?libraries=places" type="text/javascript"></script>
+<script src="~/JS/Common/Geocoder.js" type="text/javascript"></script>
+<script type="text/javascript">
+    Geocoder = {};
+
+    HomePage = Foundation.Page.extend({
+        ctor: function () {
+            Foundation.Page.prototype.ctor.call(this);
+            this.searchCategory = new Controls.Category.Current_Home();
+            this.searchLocation = new Controls.Location.Current_Home();
+            this.locationTabs = new Foundation.Controls.Layout.TabControl();
+            this.searchNear = new Foundation.Controls.Location.TextBox();
+            this.searchBox = new Foundation.Controls.Search.TextBox_Home();
+
+            $.views.helpers({
+                Navigation: Navigation
+            });
+        },
+
+        Initialize: function (options) {
+            if (this.NavToken) {
+                User.Service.Master.Category._token = Page._token;
+                User.Service.Master.Location._token = Page._token;
+            }
+
+            var $this = this;
+            this.searchCategory.Populated = function (category, secondary) {
+                if (category && !secondary) {
+                    if (category.Id > 0)
+                        $this.searchBox.Prompt(String.format("@Resource.Action.Search_in_X", category.Name));
+                    else
+                        $this.searchBox.Prompt();
+                } //Used to set Title and Keywords
+                $this.Load();
+            };
+            this.searchCategory.Initialize($('#category')); //Will trigger Populate and may raise Populated
+
+            this.searchLocation.Populated = function (l) {
+                $this.Load();
+            }
+
+            this.locationTabs.Initialize($('#locationTabs'));
+            this.locationTab = new Foundation.Controls.Layout.TabItem(this.searchLocation);
+            this.locationTab.Header = "<span>@Resource.Dictionary.Location</span>";
+            this.locationTabs.AddTab(this.locationTab);
+            this.nearTab = new Foundation.Controls.Layout.TabItem(this.searchNear);
+            this.nearTab.Header = "<span>@Resource.Dictionary.Near</span>";
+            this.locationTabs.AddTab(this.nearTab, {
+                addClass: "white"
+            });
+            this.locationTabs.Visible(true);
+            this.locationTabs.SelectedItem = function (selectedItem, selectedIndex) {
+                if (selectedItem != undefined) {
+                    Foundation.Controls.Layout.ItemSelector.prototype.SelectedItem.call(this, selectedItem, selectedIndex);
+                    switch (selectedIndex) {
+                        case 0:
+                            this.$container.removeClass("borderless");
+                            break;
+                        case 1:
+                            this.$container.addClass("borderless");
+                            break;
+                    }
+                }
+                else
+                    return Foundation.Controls.Layout.ItemSelector.prototype.SelectedItem.call(this);
+            };
+
+            this.searchBox.Initialize($('table.search'));
+            if (this.NavToken) {
+                var navToken = this.NavToken();
+                if (navToken)
+                    this.searchBox.$search.attr('href', Navigation.Main.Href(navToken));
+            }
+            $("#query", this.searchBox.$container).focus();
+
+            Foundation.Page.prototype.Initialize.call(this, options); //will try to initialize searchLocation and searchBox
+        },
+
+        ValidateRequest: function (token) {
+            if (token.Action == Model.Session.Action.Default)
+                return true;
+            else
+                return false;
+        },
+
+        Load: function () {
+            if (!this.Loaded && this.searchCategory.$select.Parents && this.searchLocation.$select.Parents) {
+                Foundation.Page.prototype.Load.call(this); //Set the loaded flag
+            }
+        },
+
+        ReflectUser: function () {
+            Foundation.Page.prototype.ReflectUser.call(this);
+
+            if (Session.User.Id > 0 && Session.User.CategoryId > 0 &&
+                typeof this.searchCategory != 'undefined' && this.searchCategory instanceof Foundation.Controls.Category.Current && Session.User.CategoryId > 0 && this.searchCategory.Id() != Session.User.CategoryId)
+                this.searchCategory.Populate(Session.User.CategoryId);
+        },
+
+        onSearch: function (query) {
+            if (!String.isNullOrWhiteSpace(query))
+                this._token.SearchQuery = query;
+
+            this.doSearch();
+        }
+    });
+</script>
+@RenderSection("head", required: false)}
+@RenderBody()

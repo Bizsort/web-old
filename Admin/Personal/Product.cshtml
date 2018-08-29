@@ -1,0 +1,439 @@
+﻿@{
+    Layout = "~/Admin/Product/_Editor.cshtml";
+}
+
+@section head {
+@*http://stackoverflow.com/questions/805107/creating-multiline-strings-in-javascript*@
+<script type="text" id="confirmEmail">
+    @Resource.Personal.Confirm_Email
+</script>
+<script type="text/javascript">
+    Page = new (Product.Editor.extend({
+        ctor: function () {
+            this.ApplicationPage = "/Admin/Personal/Product";
+            Product.Editor.prototype.ctor.call(this);
+            this.confirmEmail = new Foundation.Controls.Confirm.Form();
+            this.confirmEmail.MessageFormat = $('#confirmEmail').html(); //"Resource.Personal.Confirm_Email" causes Unterminated string constant
+
+            $.views.helpers({
+                canExecute: Foundation.Controls.Action.CanExecute
+            });
+        },
+
+        ValidateRequest: function (token) {
+            if (Session.User.Id == 0) {
+                if (token.AccountType == undefined)
+                    this.NoAccount = true;
+                else
+                    return false;
+            }
+            else if (token.AccountType != Model.AccountType.Personal || token.AccountId != Session.User.Id)
+                return false;
+
+            if (token.ProductId == 0 && token.Action == Model.Session.Action.ProductNew) {
+                this._mode = Foundation.EditMode.New;
+                return true;
+            }
+            else if (token.ProductId > 0 && token.Action == Model.Session.Action.ProductEdit &&
+                (!this.NoAccount || !Guid.isEmpty(token.Key))) {
+                this._mode = Foundation.EditMode.Edit;
+                return true;
+            }
+            else
+                return false;
+        },
+
+        Initialize: function (options) {
+            ReflectMenu(Navigation.Menu.MainItem.ItemType.Advertise, Navigation.Menu.SubItem.ItemType.Advertise_Personal);
+
+            var $this = this;
+            this.communities.StateOverride = function (communities, state) {
+                if (!$this.NoAccount) {
+                    if (state == Foundation.Controls.Action.State.Active && $this.ProductIsActive()) {
+                        $this.confirmCommunity.Content["Product"] = $this.Product.Master.Title;
+                        communities.State(Foundation.Controls.Action.State.Active);
+                    }
+                    else if (communities.State() != Foundation.Controls.Action.State.Inactive)
+                        communities.State(Foundation.Controls.Action.State.Inactive);
+                }
+                else
+                    communities.State(Foundation.Controls.Action.State.Hidden);
+            };
+
+            Product.Editor.prototype.Initialize.call(this, options);
+            $('span.header', this.actionPanel.$container).append(Controls.SignIn.Prompt());
+            $('<div class="noAccount" style="display:none; margin-bottom:15px;"><span>' + Controls.SignIn.Prompt("@Resource.Personal.SignIn_Prefix", "@Resource.Personal.SignIn_Postfix") + '. @Resource.Personal.SignIn_Alternative</span></div>').insertBefore('#errorMessage');
+
+            this.confirmEmail.Submit = function () {
+                $this.Ready(false);
+                try {
+                    $this.Save(true);
+                    $this.confirmEmail.SubmitComplete();
+                }
+                catch (ex) {
+                    $this.Invalidate(ex);
+                }
+            };
+        },
+
+        AddActions: function () {
+            this.actionPanel.Add(this.communities, { separated: true });
+        },
+
+        ReflectUser: function () {
+            if (Session.User.Id > 0 && this.NoAccount) {
+                if (this._token.Action == Model.Session.Action.ProductNew) {
+                    //if (_notifyPropertyChanged != null)
+                    //    _notifyPropertyChanged(this, new System.ComponentModel.PropertyChangedEventArgs("AccountName"));
+
+                    this._token.AccountType = Model.AccountType.Personal;
+                    this.Product.Account.Id = Session.User.Id;
+                    $('.noAccount').hide();
+                    $('.noAccount-not').show();
+                    $('.accountName').text(Session.User.Name);
+                    this.NoAccount = false;
+                }
+                else if (Session.User.Id == this.Product.Account.Id && this._token.Action == Model.Session.Action.ProductEdit) {
+                    Navigation.Product.Edit(Model.AccountType.Personal, this.Product.Id, Settings.Guid.Empty);
+                    return;
+                }
+                else {
+                    Navigation.Product.ListEdit(Model.AccountType.Personal);
+                    return;
+                }
+            }
+            Foundation.Page.prototype.ReflectUser.call(this);
+        },
+
+        Load: function () {
+            Foundation.Inserter.prototype.Load.call(this); //Set loaded & initialize tabbable
+            if (this.NoAccount) {
+                this.captchaImage = $('<img src="' + Session.CaptchaRef() + '"/>');
+                $('#captchaImage').append(this.captchaImage);
+                $('.noAccount').show();
+                $('.noAccount-not').hide();
+            }
+            else
+                $('.accountName').text(Session.User.Name);
+
+            if (this._mode == Foundation.EditMode.New) {
+                if (this.guidelines && !Session.User.SuppressGuidelines)
+                    this.guidelines.Show();
+                var product = new Admin.Model.Personal.Product.Profile(true);
+                if (!this.NoAccount) {
+                    product.Account.Id = Session.User.Id;
+                    if (Session.User.Address)
+                        product.Address = $.extend({}, Session.User.Address);
+                }
+                else {
+                    if (Session.User.LocationId > 0)
+                        product.Address.Location = Session.User.LocationId;
+                    else { //To allow for email validation before country is set
+                        var $this = this;
+                        User.Service.Master.Location.GetSettings(Settings.Location.Country, function (locationSettings) {
+                            $this.LocationSettings(locationSettings);
+                            //$this.$validationItems.LocationSettings = locationSettings;
+                        });
+                    }
+                }
+
+                this.populate(product);
+            }
+            else if (this._mode == Foundation.EditMode.Edit)
+                Admin.Service.Personal.Product.Edit(this._token.ProductId, this._token.Key, jQuery.proxy(this.populate, this));
+        },
+
+        populate: function (product) {
+            if (product && product.Account.AccountType == Model.AccountType.Personal &&
+                (product.Account.Id == Session.User.Id || (this.NoAccount && this._mode == Foundation.EditMode.Edit))) {
+
+                this.Entity(product);
+
+                Product.Editor.prototype.EvaluateActions.call(this); // Evaluate after Product is set
+            }
+            else
+                throw new Foundation.Exception.OperationException(Foundation.Exception.OperationException.Type.Invalid);
+        },
+
+        Entity: function (entity) {
+            if (entity) {
+                this.Product = entity;
+                Product.Editor.prototype.Entity.call(this, entity);
+                $("#unlisted").prop('checked', entity.Type === Model.Product.Type.Unlisted ? true : false);
+            }
+        },
+
+        EvaluateActions: function (reset) {
+            if (!this.Product) {
+                //need to delay EvaluateActions until populate is called
+                for (var i = 0; i < this.actionPanel.Actions.length; i++) {
+                    if (this.NoAccount && this.actionPanel.Actions[i] instanceof Controls.Community.Select)
+                        this.actionPanel.Actions[i].State(Foundation.Controls.Action.State.Hidden);
+                    else if (this.actionPanel.Actions[i].State() != Foundation.Controls.Action.State.Inactive)
+                        this.actionPanel.Actions[i].State(Foundation.Controls.Action.State.Inactive);
+                }
+            }
+            else
+                Product.Editor.prototype.EvaluateActions.call(this, reset);
+        },
+
+        Validate: function (proceed, ctx) {
+            var $this = this;
+            Product.Editor.prototype.Validate.call(this, function (valid) {
+                if ($this.NoAccount) {
+                    $this.Product.Account.SecurityCode = $('#securityCode', $this.$container).val();
+                    $this.Product.Account.Email = $('#email', $this.$container).val();
+                    if (String.isNullOrWhiteSpace($this.Product.Account.SecurityCode)) {
+                        $this.$errorInfo.SetError('securityCode', "@String.Format(Resource.Global.Editor_Error_Enter_X, Resource.Dictionary.Security_code)");
+                        valid = false;
+                    }
+                    if (String.isNullOrWhiteSpace($this.Product.Account.Email)) {
+                        $this.$errorInfo.SetError('email', "@String.Format(Resource.Global.Editor_Error_Enter_X, Resource.Dictionary.Email)");
+                        valid = false;
+                    }
+                    else if (!Model.LocationSettings.ValidateEmail.call($this, $this.Product.Account.Email)) {
+                        $this.$errorInfo.SetError('email', "@String.Format(Resource.Global.Editor_Error_Enter_X_Valid, Resource.Dictionary.Email)");
+                        valid = false;
+                    }
+                    if (valid) {
+                        if ($this.Product.Id > 0 && $this.NoAccount && $this._token.Action == Model.Session.Action.ProductEdit) {
+                            Admin.Service.Personal.Product.ValidateEmail($this.Product.Id, $this.Product.Account.Email, function (emailValid) {
+                                if (!emailValid) {
+                                    $this.$errorInfo.SetError('email', "@Resource.Product.Edit_Error_Email_Match");
+                                    proceed(false);
+                                }
+                                else
+                                    $this.ValidateQuota(proceed);
+                            }, function (ex) {
+                                if (ex.ErrorMessageType == Foundation.ErrorMessageType.Data_RecordNotFound)
+                                    $this.$errorInfo.SetError('email', "@Resource.Global.Account_Email_Error_NotFound");
+                                else
+                                    $this.$errorInfo.SetError('', this.GetErrorMessage(ex.ErrorMessageType, ex));
+
+                                proceed(false);
+                            });
+                        }
+                        else
+                            $this.ValidateQuota(proceed);
+                    }
+                    else
+                        proceed(false);
+                }
+                else
+                    proceed(valid);
+            }, ctx);
+        },
+
+        ValidateQuota: function (proceed) {
+            var $this = this;
+            Session.EvaluateQuota(this.Product.Account.Email, function (stats) {
+                if (stats != null) {
+                    try {
+                        stats.Test();
+                        proceed(true);
+                        return;
+                    }
+                    catch (ex) {
+                        $this.$errorInfo.SetError('', $this.GetErrorMessage(ex.ErrorMessageType, ex));
+                    }
+                }
+                else
+                    $this.$errorInfo.SetError('email', "@Resource.Global.Account_Email_Error_NotFound");
+
+                proceed(false);
+            }, function (ex) {
+                if (ex.ErrorMessageType == Foundation.ErrorMessageType.Data_RecordNotFound)
+                    $this.$errorInfo.SetError('email', "@Resource.Global.Account_Email_Error_NotFound");
+                else
+                    $this.$errorInfo.SetError('', $this.GetErrorMessage(ex.ErrorMessageType, ex));
+
+                proceed(false);
+            });
+        },
+
+        Save: function (submit) {
+            if (this.Product && this.Product.Account.AccountType == Model.AccountType.Personal &&
+                (this.Product.Account.Id == Session.User.Id || (this.NoAccount && this._mode == Foundation.EditMode.Edit))) {
+
+                this.Product.Type = $("#unlisted").prop('checked') ? Model.Product.Type.Unlisted : Model.Product.Type.Listed;
+                this.Product.Address = this.location.Address();
+
+                if (submit)
+                    this.Product.Status = Model.Product.Status.Pending;
+                else
+                    this.Product.Status = Model.Product.Status.Draft;
+
+                if (this.NoAccount)
+                    this.Product.PendingStatus |= Model.Product.PendingStatus.EmailConfirmation;
+                else if ((this.Product.PendingStatus & Model.Product.PendingStatus.EmailConfirmation) > 0)
+                    this.Product.PendingStatus &= ~Model.Product.PendingStatus.EmailConfirmation;
+
+                var $this = this;
+                Admin.Service.Personal.Product.Save(this.Product, Service.Image.Cache.Get(this.Product.Images.Refs), function (product) {
+                    Service.Image.Cache.Clear();
+                    if (product.Value > 0) {
+                        if ($this.NoAccount)
+                            Navigation.Product.Pending(product.Value, Model.Product.PendingStatus.EmailConfirmation);
+                        else if (!Session.User.SecurityProfile.AutoPost)
+                            Navigation.Product.Pending(product.Value, Model.Product.PendingStatus.PeerReview);
+                        else {
+                            if ($this._token.Action != Model.Session.Action.ProductEdit) {
+                                $this._token.Action = Model.Session.Action.ProductEdit;
+                                $this._token.ProductId = product.Value;
+                                Navigation.Main.Reflect($this._token);
+                                $this._mode = Foundation.EditMode.Edit;
+                            }
+                            else {
+                                $this.Product.Updated = product.Timestamp;
+                                if ($this.Product.Id == $this.Product.Master.Id)
+                                    $this.Product.Master.Updated = product.Timestamp;
+                            }
+
+                            //Need to reload to get Ids for attributes, images, options, etc
+                            Admin.Service.Personal.Product.Edit(product.Value, Settings.Guid.Empty, jQuery.proxy($this.populate, $this));
+                        }
+
+                        $this.SaveComplete();
+                    }
+                    else
+                        Navigation.Main.Home();
+
+                }, jQuery.proxy(this.Invalidate, this));
+            }
+        },
+
+        Delete: function () {
+            var $this = this;
+            if (this.SessionIsValid() && Session.User.Id == this.Product.Account.Id) {
+                Admin.Service.Personal.Product.Delete({
+                    Value: this.Product.Id,
+                    Timestamp: this.Product.Updated
+                }, this.Product.Master.Updated, function (success) {
+                    $this.DeleteComplete();
+
+                    if (success && !Navigation.Main.TryBackward())
+                        Navigation.Product.ListEdit(Model.AccountType.Personal);
+                }, jQuery.proxy(this.DeleteComplete, this));
+            }
+            else
+                this.DeleteComplete();
+        },
+
+        GetErrorMessage: function (error, data) {
+            switch (error) {
+                case Foundation.ErrorMessageType.Data_RecordNotFound:
+                    if (this.NoAccount && this._mode == Foundation.EditMode.New)
+                        return "@Resource.Global.Account_Email_Error_NotFound";
+                    else
+                        return Product.Editor.prototype.GetErrorMessage.call(this, error, data);
+                case Foundation.ErrorMessageType.Argument_Invalid:
+                    if (data.ParamName == "SecurityCode") {
+                        var msg = "@String.Format(Resource.Global.Editor_Error_Enter_X_Valid, Resource.Dictionary.Security_code)";
+                        this.$errorInfo.SetError('securityCode', msg);
+                        return msg;
+                    }
+                    else
+                        return Product.Editor.prototype.GetErrorMessage.call(this, error, data);
+                default:
+                    return Product.Editor.prototype.GetErrorMessage.call(this, error, data);
+            }
+        },
+
+        onCommand: function (command) {
+            switch (command) {
+                case "Submit":
+                    if (this.NoAccount) {
+                        this.$errorInfo.Clear();
+                        var $this = this;
+                        new Foundation.Controls.Validation.Context(function (valid) {
+                            if (valid) {
+                                $this.confirmEmail.Content["Email"] = $this.Product.Account.Email;
+                                $this.confirmEmail.Show();
+                            }
+                            else if ($this.$errorMessage)
+                                $this.$errorMessage.show();
+                        }).Validate(jQuery.proxy(this.Validate, this));
+                    }
+                    else
+                        return Product.Editor.prototype.onCommand.call(this, command);
+                    break;
+                case "NewProduct":
+                    if (this.NoAccount || (this.SessionIsValid() && this.productStats.CanList))
+                        Navigation.Product.New((this.NoAccount ? Model.Session.PostType.NoAccount : Model.Session.PostType.Personal), this.Product.Master.Category, this._token.Cancel);
+                    break;
+                case "EditProfile":
+                    if (this.SessionIsValid())
+                        Navigation.Personal.ProfileEdit();
+                    break;
+                case "EditProducts":
+                    if (this.SessionIsValid())
+                        Navigation.Product.ListEdit(Model.AccountType.Personal);
+                    break;
+                case "RefreshCaptcha":
+                    var $this = this;
+                    Session.GenerateCaptcha(function (success) {
+                        if (success)
+                            $this.captchaImage.attr('src', Session.CaptchaRef());
+                    }, jQuery.proxy(this.Invalidate, this));
+                    break;
+                default:
+                    return Product.Editor.prototype.onCommand.call(this, command);
+                    break;
+            }
+        }
+    }))();
+</script>}
+
+@section productAttr1 {
+<tr class="noAccount" style="display:none;">
+    <td class="label"><label for="email">@Resource.Dictionary.Email</label></td>
+    <td class="value" style="width:155px;"><input type="text" id="email" name="email" /></td>
+    <td></td>
+    <td></td>
+</tr>
+<tr class="noAccount" style="display:none;">
+    <td class="label" style="vertical-align:top;"><label for="securityCode">@Resource.Dictionary.Security_code</label></td>
+    <td class="value" style="width:155px; vertical-align:top;"><input type="text" id="securityCode" name="securityCode" /></td>
+    <td></td>
+    <td></td>
+</tr>
+<tr class="noAccount" style="display:none;">
+    <td class="label" style="vertical-align:top;">
+        [<a class="href" data-command="RefreshCaptcha" tabindex="-1">@Resource.Action.Refresh</a>]
+    </td>
+    <td class="value" id="captchaImage"></td>
+    <td></td>
+    <td></td>
+</tr>
+<tr>
+    <td class="label" style="vertical-align:top;"><label for="category">@Resource.Product.Edit_Category_Prompt</label></td>
+    <td colspan="3" id="categoryPlaceholder" class="value"><input type="text" id="category" name="category" style="display:none;"/></td>
+</tr>
+<tr>
+    <td></td>
+    <td class="value"><input type="checkbox" id="unlisted" />@Resource.Product.Type_Unlisted</td>
+    <td></td>
+    <td></td>
+</tr>
+<tr>
+    <td class="label"><label for="location">@Resource.Product.Edit_Location_Prompt</label></td>
+    <td colspan="3" id="addressPlaceholder" class="value"></td>
+</tr>}
+
+@section rightFrame{
+<div id="actionPanel" class="side right" style="margin-bottom:5px;">
+    <span class="header" style="display:none;"></span>
+    <ul class="actions">
+        <li>
+            <a class="action" data-link="class{:~canExecute(productStats.CanList)}" data-command="NewProduct">@Resource.Personal.Ad_Create_New</a>
+        </li>
+    </ul>
+</div>
+<div class="side right noAccount" style="display: none; margin-bottom: 5px;">
+    <span class="header">@Resource.Product.Edit_EmailConfirmation_Header</span>
+    <span class="content">@Resource.Product.Edit_EmailConfirmation_Text</span>
+</div>
+<div id="approvalRequired" class="side right" style="display: none; margin-bottom: 5px;">
+    <span class="header">@Resource.Product.Edit_ApprovalRequired_Header</span>
+    <span class="content">@Resource.Product.Edit_ApprovalRequired_Text</span>
+</div>}

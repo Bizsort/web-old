@@ -1,0 +1,63 @@
+﻿@{
+    Layout = "~/Product/_View.cshtml";
+}
+
+@section head {
+<script type="text/javascript">
+    Page = new (Product.View.extend({
+        ctor: function () {
+            this.ApplicationPage = "/Personal/Product";
+            Product.View.prototype.ctor.call(this);
+        },
+
+        AddActions: function () {
+            this.actionPanel.Add(this.messageAction);
+            this.actionPanel.Add(this.personalLists);
+            this.actionPanel.Add(this.communities);
+            this.actionPanel.Add(this.release);
+            this.actionPanel.Add(this.report);
+        },
+
+        ValidateRequest: function (token) {
+            if (token.AccountType == Model.AccountType.Personal && token.ProductId > 0 && token.Action == Model.Session.Action.ProductView) {
+                return true;
+            }
+            else
+                return false;
+        },
+
+        Load: function () {
+            var $this = this;
+            User.Service.Personal.Product.View(this._token.AccountId, this._token.ProductId, function (product) {
+                Foundation.Page.prototype.ReflectTitle.call($this, [product.Master.Title, String.format("@Resource.Global.X_Ads", "@Resource.Global.Adscroll")]);
+                Product.View.prototype.populate.call($this, product);
+            }, jQuery.proxy(this.handleEntityFetchError, this));
+        }
+    }))();
+</script>}
+
+@section centerFrame {
+<table class="attributes" id="productAttributes">
+    <tr>
+        <td class="label" style="vertical-align:top;">@Resource.Dictionary.Type</td>
+        <td class="values">
+            <table>
+                <tr>
+                    <td class="value" id="type"></td>
+                </tr>
+                @*<tr>
+                    <td class="value" id="side"></td>
+                </tr>*@
+            </table>
+        </td>
+    </tr>
+    <tr>
+        <td class="label">@Resource.Dictionary.Price</td>
+        <td class="value" id="price"></td>
+    </tr>
+    <tr id="attributes" style="display:none;"></tr>
+    <tr id="address" style="display:none;" itemprop="address" itemscope itemtype="http://schema.org/PostalAddress"></tr>
+</table>}
+
+@section profile {
+<a class="href" data-command="ViewProducts">@Resource.Product.Ads_All</a>}

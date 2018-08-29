@@ -1,0 +1,113 @@
+@{
+    Layout = "~/Layout/_LCRPanel.cshtml";
+}
+
+@section head {
+@*Not tested<script src="http://maps.googleapis.com/maps/api/js?key=AIzaSyD-24GCNOxOz5iq1_SmYK5sgHPpAgnwZos" type="text/javascript"></script>*@
+<script src="http://maps.googleapis.com/maps/api/js?libraries=places" type="text/javascript"></script>
+<script src="~/JS/Common/Geocoder.js" type="text/javascript"></script>
+<script src="~/JS/Admin.js" type="text/javascript"></script>
+<script type="text/javascript">
+    Geocoder = {};
+
+    Account = {
+        Editor: Foundation.Editor.extend({
+            ctor: function () {
+                Foundation.Editor.prototype.ctor.call(this);
+                this._confirmDelete = new Foundation.Controls.Confirm.Form();
+                this.location = new Foundation.Controls.Location.Edit(/*this*/);
+                Foundation.Validator.addMethod("validatePhone", jQuery.proxy(Model.LocationSettings.ValidatePhone, this));
+            },
+
+            $validationItems: {},
+
+            LocationSettings: function (locationSettings) {
+                this.locationSettings = locationSettings;
+            },
+
+            Initialize: function (options) {
+                Foundation.Editor.prototype.Initialize.call(this, options);
+
+                var $this = this;
+
+                //Ref: Account._Create
+                this.location.Initialize($('#addressPlaceholder'));
+                //Or use page's form (form master passed in ctor above)
+                //this.location.Container = $('#addressPlaceholder');
+                //this.location.Initialize(this.location.Container);
+                //May need review
+                this.location.Changed = function (location) {
+                    //Use RequireCounty at State level - not currenly needed
+                    var countryId = Settings.Location.Country;
+                    if (location) {
+                        var country = Model.Location.Country.call(location); //location.Country
+                        if (country)
+                            countryId = country.Id;
+                    }
+
+                    //sequence managing is done in FetchOneCache class
+                    //two subsequent requests to the cache for with different keys 1 and 2
+                    //If first is a miss it will start asynchronous fetch 
+                    //If second is a hit and returns requested data immediately
+                    //asynchronous fetch for first comes back out-of-sequence and may overwrite UI
+                    User.Service.Master.Location.GetSettings(countryId, function (locationSettings) {
+                        $this.LocationSettings(locationSettings);
+                    });
+                    $this.LocationSettings2(Settings.Location.GetSettings(location));
+                };
+            },
+
+            Entity: function (entity) {
+                if (entity) {
+                    Account.Editor.prototype.populate.call(this, entity);
+                }
+                return Foundation.Editor.prototype.Entity.call(this, entity);
+            },
+
+            populate: function (profile) {
+                $('#accountId').text(profile.Id).parent('td').show();
+
+                this.location.Populate(profile.Address);
+            },
+
+            Validate: function (proceed, ctx) {
+                //Ref: Account._Create
+                $('label[for=location]', this.$container).removeClass('errorLabel');
+                this.location.$errorInfo.Clear(); //Clear location error before $validator.form() method, otherwise it will show "Warning: No message defined for location"
+                this.$validationItems.LocationSettings = this.locationSettings;
+
+                var $this = this;
+                var mv = ctx.MultiValidator();
+                mv.AddStep(function (proceed_, param) {
+                    $this.location.ValidateStep(function (locationValid) {
+                        if (!locationValid || !$this.location.Geolocation) {
+                            $('label[for=location]', $this.$container).addClass('errorLabel');
+                            proceed_(false, param);
+                        }
+                        else { @*Resolve Location.Id on the server*@
+                            $this.location.Resolve(function (locationValid) {
+                                if (!locationValid || !$this.location.$address) {
+                                    $('label[for=location]', $this.$container).addClass('errorLabel');
+                                    proceed_(false, param);
+                                }
+                                else
+                                    proceed_(true, param);
+                            });
+                        }
+                    }, param);
+                });
+
+                proceed(this.$validator.validate() && !this.$errorInfo.HasErrors);
+            }
+        })
+    }
+</script>
+@RenderSection("head", required: false)}
+
+@section headerFrame {
+@RenderSection("headerFrame", required: true)}
+
+@section leftFrame {
+@RenderSection("leftFrame", required: false)}
+
+@RenderBody()

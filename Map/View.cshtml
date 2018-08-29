@@ -1,0 +1,151 @@
+﻿<!DOCTYPE html>
+<html>
+    <head>
+        <title>@String.Format(Resource.Global.Page_TitleFormat, Resource.Dictionary.Map)</title>
+        <meta name="viewport" content="initial-scale=1.0, user-scalable=no" />
+        <link href="~/CSS/Colors.css" rel="stylesheet" />
+        <link href="~/CSS/Menu.css" rel="stylesheet" />
+        <link href="~/CSS/Form.css" rel="stylesheet" />
+        <style type="text/css">
+            body 
+            { 
+                margin: 0; 
+                padding: 0; 
+                background-color: #fff; 
+                overflow:hidden;
+            }
+        </style>
+        <script src="~/JS/External/json2.js" type="text/javascript"></script>
+        <script src="~/JS/External/jquery-3.2.1.js" type="text/javascript"></script>
+        @*Not tested<script src="http://maps.googleapis.com/maps/api/js?key=AIzaSyD-24GCNOxOz5iq1_SmYK5sgHPpAgnwZos" type="text/javascript"></script>*@
+        <script src="http://maps.googleapis.com/maps/api/js" type="text/javascript"></script>
+        <script src="~/JS/Common/System.js" type="text/javascript"></script>
+        <script src="~/JS/Common/Geocoder.js" type="text/javascript"></script>
+        <script type="text/javascript">
+            Resource = {
+            };
+
+            //Service.Geocoder.Stringify
+            Settings = {
+                Location: {
+                    Address1Threshold: @Settings.Instance.Location.Address1Threshold
+                }
+            };
+
+            var map;
+            var marker;
+            var infoWindow;
+
+            $(document).ready(function () {
+                var query;
+                if (location.search && location.search.length > 1) {
+                    query = location.search.substring(1, location.search.length);
+                }
+
+                if (!String.isNullOrWhiteSpace(query)) {
+                    var input = JSON.parse(decodeURIComponent(query).replace(/\+/g, ' '));
+                    if (!$.isEmptyObject(input)) {
+
+                        var address;
+                        if (input.Text) {
+                            address = input.Text;
+                        }
+                        else if (input.Address) {
+                            var address = Service.Geocoder.Stringify(input.Address);
+                        }
+
+                        if (input.Geolocation) {
+                            showMap({ 
+                                location: new google.maps.LatLng(input.Geolocation.Lat, input.Geolocation.Lng)
+                            }, address, input.PlaceName);
+                        }
+                        else if (!String.isNullOrWhiteSpace(address)) {
+                            //$('#address').val(address);
+                            populate(address, input.PlaceName);
+                        }
+                        else {
+                            window.close();
+                            return;
+                        }
+                    }
+                }
+                else {
+                    window.close();
+                    return;
+                }
+            });
+
+            function populate(address, placeName) {
+                setDisabled($('#update'), true);
+                Service.Geocoder.Geocode(address, function (output) {
+                    if (!$.isEmptyObject(output)) {
+                        if (output.Geolocation) {
+                            showMap(/*output.Geolocation*/output.geometry, output.Text, placeName);
+                        }
+
+                        //if (output.Text)
+                        //    $('#address').val(output.Text);
+                    }
+                }, function (error) {
+                    alert(error || String.format("@Resource.Global.Address_Error_Unable_to_map_X", $('#address').val()));
+                });
+            }
+
+            function showMap(geometry, address, placeName) {
+                //https://developers.google.com/maps/documentation/javascript/reference
+                //geolocation = new google.maps.LatLng(geolocation.Lat, geolocation.Lng);
+
+                if(!map) {
+                    var options = {
+                        mapTypeId: google.maps.MapTypeId.ROADMAP,
+                        center: geometry.location,
+                        zoom: 16
+                    };
+                    map = new google.maps.Map($('#map')[0], options);
+                    if (geometry.viewport)
+                        map.fitBounds(geometry.viewport);
+                }
+                else if (!geometry.viewport) {
+                    map.setCenter(geometry.location);
+                    map.setZoom(16);
+                }
+                else
+                    map.fitBounds(geometry.viewport);
+
+                if(!marker) {
+                    marker = new google.maps.Marker({ 
+                        map: map, 
+                        title: placeName || address,
+                        position: geometry.location
+                    });
+                }
+                else {
+                    marker.setPosition(geometry.location);
+                    marker.setTitle(address);
+                }
+                marker.setVisible(true);
+
+                //https://developers.google.com/maps/documentation/staticmaps/index
+                //var mapParams = 'markers=' + geolocation.Lat + ',' + geolocation.Lng + '&size=640x480';
+                //$('img.map').attr('src', 'http://maps.googleapis.com/maps/api/staticmap?' + mapParams);
+
+                if (placeName) {
+                    if(!infoWindow) {
+                        infoWindow = new google.maps.InfoWindow();
+                        google.maps.event.addListener(marker, 'click', function () {
+                            infoWindow.open(map, marker);
+                        });
+                    }
+                    infoWindow.setContent(placeName ? '<div><strong>' + placeName + '</strong><br>' + address : address);
+                    infoWindow.open(map, marker);
+                }
+                else if(infoWindow)
+                    infoWindow.close();
+            }
+        </script>
+    </head>
+    <body>
+        <div id="map" class="map"></div>
+        <!--img id="map" class="map" /-->
+    </body>
+</html>

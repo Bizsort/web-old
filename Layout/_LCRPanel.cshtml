@@ -1,0 +1,45 @@
+﻿@{
+    Layout = "~/_Master.cshtml";
+}
+
+@section token {
+@RenderSection("token", required: false)}
+
+@section head {
+@RenderSection("head", required: false)
+<script type="text/javascript">
+    $(document).ready(function () {
+        _layout();
+        $(window).resize(function() {
+            _layout();
+        });
+    });
+
+    function _layout () {
+        var maxHeight = $(window).height();
+        $('#leftFrame').first().css({
+            maxHeight: maxHeight
+        });
+    };
+</script>}
+
+<table id="content" style="width:100%; margin-top:10px;">
+    <tr style="vertical-align:top; height:auto;">
+        <td id="headerFrame" colspan="3">
+            @RenderSection("headerFrame", required: false)
+        </td>
+    </tr>
+    <tr style="vertical-align: top;">
+        <td class="auto" style="max-width:250px;">
+            <div id="leftFrame" style="overflow-y: auto; overflow-x: hidden; margin-right: 10px;">
+                @RenderSection("leftFrame", required: false)
+            </div>
+        </td>
+        <td id="centerFrame" itemscope itemtype="@(Page.MicrodataItemType ?? "http://schema.org/Thing")">
+            @RenderBody()
+        </td>
+        <td id="rightFrame" class="auto" style="max-width:180px;">
+            @RenderSection("rightFrame", required: false)
+        </td>
+    </tr>
+</table>

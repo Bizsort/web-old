@@ -1,0 +1,89 @@
+﻿@{
+    Layout = "~/Admin/Product/_Products.cshtml";
+}
+
+@section head {
+<script type="text/javascript">
+    Page = new (Products.extend({
+        ctor: function () {
+            this.ApplicationPage = "/Admin/Personal/Products";
+
+            var listView = new Controls.Product.ListView();
+            listView.Selectable(true);
+            listView.Status(true);
+            Products.prototype.ctor.call(this, listView);
+            this.List.Entity = "@Resource.Dictionary.ad_s";
+            this.List.EmptyHeaderTemplate.Format("@Resource.Personal.Ads_Empty");
+
+            $.views.helpers({
+                dateFormatter: Foundation.ValueConverter.DateFormatter,
+                canExecute: Foundation.Controls.Action.CanExecute
+            });
+        },
+
+        Initialize: function (options) {
+            ReflectMenu(Navigation.Menu.MainItem.ItemType.Personal, Navigation.Menu.SubItem.ItemType.Personal_Products);
+            
+            Products.prototype.Initialize.call(this, options);
+
+            if (Session.User.Business.Id > 0)
+                $('#businessProducts').show();
+        },
+
+        ValidateRequest: function (token) {
+            if (this.SessionIsValid() && token.AccountType == Model.AccountType.Personal && token.Action == Model.Session.Action.ProductsEdit) {
+                return true;
+            }
+            else
+                return false;
+        },
+
+        fetchList: function (queryInput, callback, faultCallback) {
+            Admin.Service.Personal.Profile.GetProducts(callback, faultCallback);
+        },
+
+        onCommand: function (command) {
+            switch (command) {
+                case "BusinessProducts":
+                    if (this.SessionIsValid() && Session.User.Business.Id > 0)
+                    {
+                        switch (Session.User.Business.ProductsView) {
+                            case Model.Business.ProductsView.ProductList:
+                                Navigation.Product.ListEdit(Model.AccountType.Business);
+                                break;
+                            case Model.Business.ProductsView.Multiproduct:
+                                Navigation.Business.MultiproductEdit();
+                                break;
+                            case Model.Business.ProductsView.ProductCatalog:
+                                Navigation.Business.CatalogEdit();
+                                break;
+                        }
+
+                    }
+                    break;
+                default:
+                    Products.prototype.onCommand.call(this, command);
+                    break;
+            }
+        }
+    }))();
+</script>}
+
+@section headerFrame {
+<div class="context" style="width:100%; margin-bottom:10px;">
+    <a class="href accountName" data-command="EditProfile"></a>&nbsp;&gt;&nbsp;<span>@Resource.Personal.Ads</span>
+</div>}
+
+@section leftFrame {
+<div class="side left" id="businessProducts" style="display:none;">
+    <a class="href" data-command="BusinessProducts">@Resource.Business.Products</a>
+</div>}
+
+@section rightFrame{
+<div id="actionPanel" class="side right" style="margin-bottom:5px;">
+    <ul class="actions">
+        <li>
+            <a class="action" data-link="class{:~canExecute(productStats.CanList)}" data-command="NewProduct">@Resource.Personal.Ad_Create_New</a>
+        </li>
+    </ul>
+</div>}

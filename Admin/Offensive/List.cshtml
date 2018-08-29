@@ -1,0 +1,292 @@
+@{
+    Page.Title = String.Format(Resource.Global.Page_TitleFormat, Resource.Global.Offensive_List);
+    Layout = "~/Layout/_SurfacePanel.cshtml";
+}
+
+@section head {
+<script type="text/javascript">
+    Offensive = {
+        WordType: {
+            Product: 1,
+            Pending: 2,
+            Custom: 4,
+            Effective: 8
+        },
+
+        ItemsControl: Foundation.Controls.Control.extend({
+            ctor: function () {
+                Foundation.Controls.Control.prototype.ctor.call(this);
+                this.Items = [];
+            },
+
+            Populate: function (items) {
+                this.Items = items;
+                this.applyTemplate(this.Items);
+            },
+
+            Add: function (item) {
+                this.Items.push(item);
+                this.applyTemplate(this.Items);
+            },
+
+            Remove: function (elem) {
+                this.Items.splice(parseInt(elem.attr('data-itemIndex')), 1);
+                this.applyTemplate(this.Items);
+            },
+
+            Find: function (text) {
+                for (var i = 0, l = this.Items.length; i < l; i++)
+                    if (this.Items[i].Text == text) {
+                        return this.Items[i];
+                    }
+            }
+        }),
+
+        List: Foundation.Inserter.extend({
+            ctor: function () {
+                this.ApplicationPage = "/Admin/Offensive/List";
+                Foundation.Inserter.prototype.ctor.call(this);
+
+                var $this = this;
+                this.listTabs = new Foundation.Controls.Layout.TabControl();
+                this.wordPicker = new Offensive.ItemsControl();
+                this.wordPicker.Template = jQuery.templates('{{if #index > 0}}&nbsp;{{/if}}' +
+                '<a class="href" data-command="AddProduct" data-itemIndex="{{:#index}}">{{:#data}}</a>');
+                this.wordPicker.AddProduct = function (text) {
+                    if (text) {
+                        var word = $this.add.Find(text);
+                        if (!word) {
+                            $this.add.Add({
+                                Text: text,
+                                Type: Offensive.WordType.Product
+                            });
+                        }
+                        else
+                            word.Type |= Offensive.WordType.Product;
+                    }
+                };
+
+                this.pending = new Offensive.ItemsControl();
+                this.pending.Template = jQuery.templates('{{if #index > 0}}&nbsp;|&nbsp;{{/if}}' +
+                '<a class="href" data-command="AcceptPending" data-itemIndex="{{:#index}}">{{:#data}}</a>' +
+                ' [<a class="href" style="padding-left:2px; padding-right:2px;" data-command="RejectPending" data-itemIndex="{{:#index}}">x</a>]');
+                this.pending.AcceptPending = function (text, elem) {
+                    if (Session.User.SecurityProfile.CanManage_OffensiveList && text) {
+                        $this.pending.Remove(elem);
+                        var word = $this.add.Find(text);
+                        if (!word) {
+                            $this.add.Add({
+                                Text: text,
+                                Type: Offensive.WordType.Pending
+                            });
+                        }
+                        else
+                            word.Type |= Offensive.WordType.Pending;
+                    }
+                };
+                this.pending.RejectPending = function (text, elem) {
+                    if (Session.User.SecurityProfile.CanManage_OffensiveList && text) {
+                        $this.pending.Remove(elem);
+                        var word = $this.remove.Find(text);
+                        if (!word) {
+                            $this.remove.Add({
+                                Text: text,
+                                Type: Offensive.WordType.Pending
+                            });
+                        }
+                        else
+                            word.Type |= Offensive.WordType.Pending;
+                    }
+                };
+
+                this.effective = new Offensive.ItemsControl();
+                this.effective.Template = jQuery.templates('{{if #index > 0}}&nbsp;|&nbsp;{{/if}}' +
+                '<a class="href reverse" data-command="RemoveEffective" data-itemIndex="{{:#index}}">{{:#data}}</a>');
+                this.effective.RemoveEffective = function (text, elem) {
+                    if (Session.User.SecurityProfile.CanManage_OffensiveList && text) {
+                        $this.effective.Remove(elem);
+                        var word = $this.remove.Find(text);
+                        if (!word) {
+                            $this.remove.Add({
+                                Text: text,
+                                Type: Offensive.WordType.Effective
+                            });
+                        }
+                        else
+                            word.Type |= Offensive.WordType.Effective;
+                    }
+                };
+
+                this.add = new Offensive.ItemsControl();
+                this.add.Template = jQuery.templates('{{if #index > 0}}&nbsp;|&nbsp;{{/if}}' +
+                '<a class="href reverse" data-command="UndoAdd" data-itemIndex="{{:#index}}">{{:Text}}</a>');
+                this.add.UndoAdd = function (word, elem) {
+                    if (word) {
+                        $this.add.Remove(elem);
+                        if ((word.Type & Offensive.WordType.Effective) > 0) {
+                            $this.effective.Add(word.Text);
+                        }
+                        if ((word.Type & Offensive.WordType.Pending) > 0) {
+                            $this.pending.Add(word.Text);
+                        }
+                    }
+                };
+
+                this.remove = new Offensive.ItemsControl();
+                this.remove.Template = jQuery.templates('{{if #index > 0}}&nbsp;|&nbsp;{{/if}}' +
+                '<a class="href reverse" data-command="UndoRemove" data-itemIndex="{{:#index}}">{{:Text}}</a>');
+                this.remove.UndoRemove = function (word, elem) {
+                    if (word) {
+                        $this.remove.Remove(elem);
+                        if ((word.Type & Offensive.WordType.Effective) > 0) {
+                            $this.effective.Add(word.Text);
+                        }
+                        if ((word.Type & Offensive.WordType.Pending) > 0) {
+                            $this.pending.Add(word.Text);
+                        }
+                    }
+                };
+            },
+
+            Initialize: function (options) {
+                ReflectMenu(Navigation.Menu.MainItem.ItemType.Advertise, Navigation.Menu.SubItem.ItemType.Advertise_Offensive);
+                Foundation.Inserter.prototype.Initialize.call(this, options);
+
+                if (this._token.ProductId > 0)
+                    $('#prompt').text("@Resource.Product.Ad_Offensive_Prompt").show();
+
+                //Tabs
+                this.listTabs.Initialize($('#listTabs'));
+                this.wordPickerTab = new Foundation.Controls.Layout.TabItem($('<div id="wordPicker"></div>'), {
+                    visible: false
+                });
+                this.wordPickerTab.Header = "<span>@Resource.Product.Ad_Text</span>";
+                this.listTabs.AddTab(this.wordPickerTab);
+                this.wordPicker.Initialize($('#wordPicker'));
+
+                this.pendingTab = new Foundation.Controls.Layout.TabItem($('<div id="pendingItemList"></div>'), {
+                    visible: false
+                });
+                this.pendingTab.Header = "<span>@Resource.Global.Offensive_List_Pending</span>";
+                this.listTabs.AddTab(this.pendingTab);
+                this.pending.Initialize($('#pendingItemList'));
+
+                this.effectiveTab = new Foundation.Controls.Layout.TabItem($('<div id="effectiveItemList"></div>'));
+                this.effectiveTab.Header = "<span>@Resource.Global.Offensive_List_Effective</span>";
+                this.listTabs.AddTab(this.effectiveTab);
+                this.effective.Initialize($('#effectiveItemList'));
+
+                this.add.Initialize($('#addItemList'));
+                this.remove.Initialize($('#removeItemList'));
+            },
+
+            ValidateRequest: function (token) {
+                if (Session.User.Id > 0 && token.Action == Model.Session.Action.OffensiveList &&
+                    (token.ProductId || Session.User.SecurityProfile.CanManage_OffensiveList)) {
+                    return true;
+                }
+                else
+                    return false;
+            },
+
+            Load: function () {
+                Foundation.Inserter.prototype.Load.call(this); //Set loaded & initialize tabbable
+                var $this = this;
+                if (this._token.ProductId > 0) {
+                    Admin.Service.Product.Profile.GetWords(this._token.ProductId, function (words) {
+                        $this.wordPicker.Populate(words);
+                        $this.wordPickerTab.Visible(true);
+                        if ($this.listTabs.SelectedIndex() != 0)
+                            $this.listTabs.SelectedIndex(0);
+                    });
+                }
+
+                var showPending = true/*Session.User.SecurityProfile.CanManage_OffensiveList*/;
+                Admin.Service.Product.Profile.GetOffensiveWords(showPending, function (words) {
+                    $this.effective.Populate(words.Effective);
+                    if (showPending) {
+                        $this.pending.Populate(words.Pending);
+                        $this.pendingTab.Visible(true);
+                        if ($this._token.ProductId == 0 && $this.listTabs.SelectedIndex() != 1)
+                            $this.listTabs.SelectedIndex(1);
+                    }
+                });
+            },
+
+            Validate: function (proceed) {
+                if (this.add.Items.length || (Session.User.SecurityProfile.CanManage_OffensiveList && this.remove.Items.length))
+                    proceed(true);
+                else
+                    proceed(false);
+            },
+
+            Save: function (submit) {
+                if (Session.User.Id > 0 && this._token.Action == Model.Session.Action.OffensiveList &&
+                    (this._token.ProductId || Session.User.SecurityProfile.CanManage_OffensiveList)) {
+                    var $this = this;
+                    Admin.Service.Product.Profile.UpdateOffensiveWords(jQuery.map(this.add.Items, function (a) {
+                        return a.Text;
+                    }), (Session.User.SecurityProfile.CanManage_OffensiveList ? jQuery.map(this.remove.Items, function (r) {
+                        return r.Text;
+                    }) : null), function (success) {
+                        $this.SaveComplete();
+                        if (success)
+                            Navigation.Main.Refresh();
+                    }, jQuery.proxy(this.Invalidate, this));
+                }
+                else
+                    throw new Foundation.Exception.OperationException(Foundation.Exception.OperationException.Type.Invalid);
+            },
+
+            onCommand: function (command) {
+                switch (command) {
+                    case "AddCustom":
+                        var text = $('#custom', this.$container).val();
+                        if (text) {
+                            var word = this.add.Find(text);
+                            if (!word) {
+                                this.add.Add({
+                                    Text: text,
+                                    Type: Offensive.WordType.Custom
+                                });
+                            }
+                            else
+                                word.Type |= Offensive.WordType.Custom;
+                        }
+                        break;
+                    default:
+                        Foundation.Inserter.prototype.onCommand.call(this, command);
+                        break;
+                }
+            }
+        })
+    };
+
+    Page = new Offensive.List();
+</script>}
+
+@section headerFrame {
+<div style="text-align:center; margin-bottom:5px;">
+    <span id="prompt" class="formSuccess" style="display:none;"></span>
+</div>}
+
+<form id="form" action="">
+    <div class="tabControl" style="margin-bottom:10px;" id="listTabs">
+    </div>
+    <div style="margin-bottom:2px;">@Resource.Global.Offensive_List_Add</div>
+    <div id="addItemList" style="margin-bottom:2px;"></div>
+    <div class="valign-parent">
+        @*Controls.Product.Tags -> Add*@
+        <span>@Resource.Global.Offensive_List_Add_Custom&nbsp;</span>
+        <input type="text" id="custom" style="width: 100px;" />
+        <a class="image-button active right valign-child" data-command="AddCustom"><span class="add"></span></a>  @*style="background-image: url('@Href(\"images/tag.png\")');"*@
+    </div>
+    <div style="margin-top:5px; margin-bottom:2px;">@Resource.Global.Offensive_List_Remove</div>
+    <div id="removeItemList"></div>
+    <div class="form footer buttonPanel">
+        <button type="button" id="submit" class="active"><span class="button-content">@Resource.Action.Submit</span></button>
+        <button type="button" id="cancel" data-command="Cancel" class="active"><span class="button-content">@Resource.Action.Cancel</span></button>
+    </div>
+    <span id="error" class="formError" style="display:none; margin-top:15px;">
+    </span>
+</form>
